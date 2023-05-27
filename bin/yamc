@@ -1,0 +1,4 @@
+#!/bin/bash
+pdir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
+
+python -m yamc $@
