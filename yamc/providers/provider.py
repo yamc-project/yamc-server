@@ -7,6 +7,7 @@ import re
 import threading
 import unidecode
 import logging
+import time
 
 from lxml import etree
 from yamc.component import BaseComponent, global_state
@@ -308,6 +309,19 @@ class EventSource:
             return topics[0]
         else:
             return None
+
+
+# def interface(func):
+#     # Decorator logic here
+#     def wrapper(*args, **kwargs):
+#         try:
+#             print(args[0])
+#             result = func(*args, **kwargs)
+#             return result
+#         except Exception as e:
+#             raise Exception("Exception in interface: %s" % str(e))
+
+#     return wrapper
 
 
 class PerformanceProvider(BaseProvider, EventSource):
