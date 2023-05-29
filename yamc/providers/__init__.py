@@ -11,4 +11,5 @@ from .provider import (
     EventSource,
     EventProvider,
     StateProvider,
+    perf_checker,
 )

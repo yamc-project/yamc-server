@@ -13,6 +13,7 @@ from lxml import etree
 from yamc.component import BaseComponent, global_state
 
 from enum import Enum
+import hashlib
 
 from yamc.utils import Map, deep_find, merge_dicts
 
@@ -311,27 +312,80 @@ class EventSource:
             return None
 
 
-# def interface(func):
-#     # Decorator logic here
-#     def wrapper(*args, **kwargs):
-#         try:
-#             print(args[0])
-#             result = func(*args, **kwargs)
-#             return result
-#         except Exception as e:
-#             raise Exception("Exception in interface: %s" % str(e))
-
-#     return wrapper
-
-
 class PerformanceProvider(BaseProvider, EventSource):
     def __init__(self, config, component_id):
         BaseProvider.__init__(self, config, component_id)
         EventSource.__init__(self)
         self.perf_topic = self.add_topic(f"yamc/performance/providers/{component_id}")
+        self.performance = Map()
+        self.performance.max_running_time = self.config.value("performance.max_running_time", default=0.5)
+        self.performance.exponential_backoff = self.config.value_bool("performance.exponential_backoff", default=False)
+        self.perf_objects = Map()
+
+    def get_perf(self, *args, **kwargs):
+        md5 = hashlib.md5()
+        md5.update(str(args).encode("utf-8") + str(kwargs).encode("utf-8"))
+        id = md5.hexdigest()
+        self.perf_objects.setdefault(id, Map(running_time=0, last_running_time=0, cycles_to_wait=0, __cycles_to_wait=0))
+        return self.perf_objects[id]
 
     def update_perf(self, id, size, running_time):
         self.perf_topic.update(Map(id=id, size=size, running_time=running_time))
+
+
+def perf_checker(func):
+    """
+    Decorator for checking the performance of a provider.
+    """
+
+    def perf_decorator(*args, **kwargs):
+        instance = args[0]
+        if not isinstance(instance, PerformanceProvider):
+            raise Exception("The performance checker can only be used with PerformanceProvider instances!")
+        try:
+            # get the performance object
+            perf = instance.get_perf(*args[1:], **kwargs)
+
+            # check if the provider is waiting
+            if perf.cycles_to_wait > 0:
+                instance.log.warn(
+                    f"The provider is waiting {perf.cycles_to_wait} more cycles as the last running time was "
+                    + f"{perf.last_running_time:.2f} seconds!"
+                )
+                perf.cycles_to_wait -= 1
+                result = None
+            else:
+                # run the function
+                start_time = time.time()
+                result = func(*args, **kwargs)
+                perf.last_running_time = time.time() - start_time
+
+                # eval the result
+                if perf.last_running_time > instance.performance.max_running_time:
+                    if perf.__cycles_to_wait > 0:
+                        if instance.performance.exponential_backoff:
+                            perf.__cycles_to_wait *= 2
+                        else:
+                            perf.__cycles_to_wait += 1
+                        perf.cycles_to_wait = perf.__cycles_to_wait
+                    else:
+                        perf.cycles_to_wait = 1
+                        perf.__cycles_to_wait = 1
+                    instance.log.warn(
+                        f"The provider {instance.component_id} took {perf.last_running_time:.2f} seconds to update the data! "
+                        + f"Will wait {perf.cycles_to_wait} cycles before next update!"
+                    )
+                else:
+                    if perf.cycles_to_wait > 0:
+                        instance.log.info("The provider is back to normal!")
+                    perf.cycles_to_wait = 0
+                    perf.__cycles_to_wait = 0
+
+        except Exception as e:
+            raise Exception("Exception in interface: %s" % str(e))
+        return result
+
+    return perf_decorator
 
 
 class EventProvider(BaseProvider, EventSource):

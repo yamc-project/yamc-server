@@ -69,6 +69,9 @@ class BaseCollector(WorkerComponent):
         else:
             # this should not really happen
             raise Exception("CRITICAL: Invalid structure of data definition!")
+
+        if data is None:
+            return None
         if isinstance(data, list):
             for d in data:
                 _data.append(self.add_time(d))
@@ -82,6 +85,9 @@ class BaseCollector(WorkerComponent):
         return _data
 
     def write(self, data, scope=None):
+        if data is None:
+            self.log.debug("There is no data to write.")
+            return
         for w in self.writers.values():
             if w["__writer"] is not None:
                 writer_def = Map({k: v for k, v in w.items() if k != "__writer"})
