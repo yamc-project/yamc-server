@@ -13,6 +13,10 @@ import pickle
 from queue import Queue
 from yamc.utils import Map, randomString, PythonExpression, deep_merge
 from yamc.component import WorkerComponent
+from yamc.config import Config
+from threading import Event
+
+from typing import Dict, List
 
 
 class HealthCheckException(Exception):
@@ -20,15 +24,15 @@ class HealthCheckException(Exception):
 
 
 class Writer(WorkerComponent):
-    def __init__(self, config, component_id):
+    def __init__(self, config: Config, component_id: str):
         super().__init__(config, component_id)
         self.config = config.writer(component_id)
-
         self.write_interval = self.config.value_int("write_interval", default=10)
         self.write_empty = self.config.value_int("write_empty", default=True)
         self.healthcheck_interval = self.config.value_int("healthcheck_interval", default=20)
         self.disable_backlog = self.config.value_int("disable_backlog", default=False)
         self.batch_size = self.config.value_int("batch_size", default=100)
+
         self._is_healthy = False
         self.last_healthcheck = 0
         self.queue = Queue()
@@ -39,7 +43,7 @@ class Writer(WorkerComponent):
     def healthcheck(self):
         pass
 
-    def is_healthy(self):
+    def is_healthy(self) -> bool:
         if not self._is_healthy and time.time() - self.last_healthcheck > self.healthcheck_interval:
             try:
                 self.last_healthcheck = time.time()
@@ -52,15 +56,15 @@ class Writer(WorkerComponent):
                 self._is_healthy = False
         return self._is_healthy
 
-    def process_conditional_dict(self, d, scope, path=""):
-        def _error(s):
+    def process_conditional_dict(self, d: Dict, scope: Map, path: str = ""):
+        def _error(s: str):
             return Exception(f"Invalid conditional dict. {s}.")
 
-        def _deep_eval(d2, path=""):
-            if isinstance(d2, dict):
+        def _deep_eval(d2: Dict, path: str = "") -> Dict:
+            if isinstance(d2, Dict):
                 for key, value in d2.items():
                     d2[key] = _deep_eval(value, path + "/" + key)
-            elif isinstance(d2, list):
+            elif isinstance(d2, List):
                 for i, x in enumerate(d2):
                     d2[i] = _deep_eval(x, path + f"[{i}]/")
             elif isinstance(d2, PythonExpression):
@@ -70,7 +74,7 @@ class Writer(WorkerComponent):
                     raise _error(f"The Python expression '{d2.expr_str}' failed in {path}. %s." % (str(e)))
             return d2
 
-        def _process_block(c, data, path=""):
+        def _process_block(c: Dict, data: Dict, path: str = "") -> Dict:
             if_expr = c.get("$if")
             if_opts = [x.strip() for x in c.get("$opts", "").split(",")]
             if if_expr is not None:
@@ -103,20 +107,18 @@ class Writer(WorkerComponent):
         df = d.get("$def")
         if df is None:
             raise _error(f"There must be '$def' property in {path}")
-        if isinstance(df, list):
+        if isinstance(df, PythonExpression):
+            df = df.eval(scope)
+        if isinstance(df, List):
             for i, c in enumerate(df):
                 data = _process_block(c, data, path + f"/$def[{i}]")
-        elif isinstance(df, PythonExpression):
-            r = df.eval(scope)
-            if not isinstance(r, dict):
-                raise _error(f"The '$def' expression must return a dictionary in {path}")
-            data = _process_block(r, data, path + "/$def")
-        else:
+        elif isinstance(df, Dict):
             data = _process_block(df, data, path + "/$def")
-        # self.log.debug(f"The conditional dict resulted in the following data: {data}")
+        else:
+            raise Exception(f"Invalid type of '$def' property in {path}. It must be a list or a dict.")
         return data
 
-    def write(self, collector_id, data, writer_def, scope=None):
+    def write(self, collector_id: str, data: List | Dict, writer_def: Dict, scope: Map = None):
         """
         Non-blocking write operation. This method is called from a collector and must be non-blocking
         so that the collector can process collecting of measurements.
@@ -127,7 +129,7 @@ class Writer(WorkerComponent):
 
         data_out = []
 
-        def _add_to_queue(data_item):
+        def _add_to_queue(data_item: Dict):
             _scope = Map() if scope is None else scope
             _scope.data = data_item
             _data = Map(
@@ -143,7 +145,7 @@ class Writer(WorkerComponent):
                 if not self.disable_backlog:
                     self.backlog.put([_data])
 
-        if isinstance(data, list):
+        if isinstance(data, List):
             for data_item in data:
                 _add_to_queue(data_item)
         else:
@@ -157,13 +159,13 @@ class Writer(WorkerComponent):
         if self.write_interval == 0:
             self.write_event.set()
 
-    def do_write(self, data):
+    def do_write(self, data: Dict):
         """
         Abstract method to write data to a desintation writer.
         """
         pass
 
-    def worker(self, exit_event):
+    def worker(self, exit_event: Event):
         """
         Thread worker method.
         """
