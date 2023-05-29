@@ -53,6 +53,9 @@ class PythonExpression:
     def __str__(self):
         return "!py %s" % self.expr_str
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 MAP_IGNORE_KEY_ERROR = True
 
