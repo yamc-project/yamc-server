@@ -136,8 +136,6 @@ def init_env(env_file, sep="=", comment="#"):
     Read environment varialbes from the `env_file` and combines them with the OS environment variables.
     """
     env = {}
-    for k, v in os.environ.items():
-        env[k] = v
     if env_file:
         with open(env_file, "rt") as f:
             for line in f:
@@ -149,6 +147,8 @@ def init_env(env_file, sep="=", comment="#"):
                         raise Exception(f"Invalid variable name '{key}'.")
                     value = sep.join(key_value[1:]).strip().strip("\"'")
                     env[key] = value
+    for k, v in os.environ.items():
+        env[k] = v
     return env
 
 
