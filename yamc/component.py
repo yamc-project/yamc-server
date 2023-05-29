@@ -12,10 +12,9 @@ from .utils import merge_dicts, Map, deep_find
 
 class State:
     """
-    The state object. It is used to hold a state of data across providers in the configuration
-    and provides the timer. The state object can be allocated from any component such as a writer
-    that can update data in the state object or provider that can read data from the state such as `StateProvider`
-    which is a subclass of `EventProvider`.
+    The state object serves as a container for data state management across various providers in the configuration.
+    It encompasses the timer functionality and can be allocated by components like writers, which update data within
+    the state object, or providers such as StateProvider, a subclass of EventProvider, which can read data from the state.
     """
 
     def __init__(self, name):
@@ -102,8 +101,7 @@ class BaseComponent:
 
 class WorkerComponent(BaseComponent):
     """
-    The base class for all worker components, that is components that run
-    worker threads.
+    The base class for all worker components, i.e. components that run worker threads.
     """
 
     def __init__(self, config, component_id):
