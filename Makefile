@@ -5,7 +5,7 @@ help:
 	@echo "make <target>"
 	@echo "build	build yamc-server."
 	@echo "clean	clean all temporary directories."
-	@echo "plugin   build yamc plugins."
+	@echo "all      build yamc plugins and the server."
 	@echo ""
 
 build:
@@ -22,6 +22,6 @@ clean:
 format:
 	black yamc
 
-plugin:
-	bin/build-plugins.sh
+all:
+	bin/build-all.sh
 
