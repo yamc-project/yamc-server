@@ -19,3 +19,4 @@ config/fmw-config.yaml
 yamc.code-workspace
 */*.env
 config/*.yaml
+build
