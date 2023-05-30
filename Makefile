@@ -9,7 +9,7 @@ help:
 	@echo ""
 
 build:
-	python setup.py egg_info sdist	
+	python setup.py bdist_wheel	
 
 check:
 	pylint yamc 
@@ -18,6 +18,7 @@ clean:
 	rm -fr build
 	rm -fr dist
 	rm -fr yamc/*.egg-info
+	rm -fr yamc/*.dist-info
 
 format:
 	black yamc
