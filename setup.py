@@ -23,7 +23,7 @@ install_requires = [
     "click>=8.1.3",
     "pyyaml>=6.0",
     "setuptools_scm>=6.0.1",
-    "requests>=2.31.0",
+    "requests>=2.27.1",
 ]
 
 setup(
