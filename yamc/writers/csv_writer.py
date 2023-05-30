@@ -5,7 +5,6 @@ import time
 import logging
 import os
 
-from influxdb import InfluxDBClient
 from .writer import Writer, HealthCheckException
 from yamc.utils import import_class, randomString
 
