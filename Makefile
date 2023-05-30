@@ -1,4 +1,4 @@
-# Makefile for res2-service
+# Makefile for yamc-server
 # uses version from git with commit hash
 
 help:
@@ -9,7 +9,8 @@ help:
 	@echo ""
 
 build:
-	python setup.py bdist_wheel	
+	python setup.py bdist_wheel
+	rm -fr build	
 
 check:
 	pylint yamc 
