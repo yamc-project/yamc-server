@@ -385,7 +385,7 @@ class PerformanceProvider(BaseProvider, EventSource):
             )
         )
 
-    def run_func(self, func, id_arg, *args, **kwargs):
+    def wrapper(self, func, id_arg, *args, **kwargs):
         """
         This method runs the function `func` from the decorator wrapper, checks the performance of the function and
         pauses the function when the performance does not meet the defined requirements of response time or when an error occurs.
@@ -446,6 +446,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 perf_info.__cycles_to_wait = 0
 
         self.update_perf(perf_info)
+        return result
 
 
 def perf_checker(id_arg=None):
@@ -459,7 +460,7 @@ def perf_checker(id_arg=None):
             result = None
             if not isinstance(provider, PerformanceProvider):
                 raise Exception("The performance checker can only be used with PerformanceProvider instances!")
-            return provider.run_func(func, id_arg, *args, **kwargs)
+            return provider.wrapper(func, id_arg, *args, **kwargs)
 
         return wrapper
 
