@@ -327,9 +327,7 @@ class PerformanceProvider(BaseProvider, EventSource):
     def __init__(self, config, component_id):
         BaseProvider.__init__(self, config, component_id)
         EventSource.__init__(self)
-        self.id_attributes = []
         self.perf_topic = self.add_topic(f"yamc/performance/providers/{component_id}")
-        self.performance_id = None
 
         # performance pause configuration
         self.performance_pause = Map(
@@ -340,9 +338,6 @@ class PerformanceProvider(BaseProvider, EventSource):
             ),
         )
         self.perf_objects = Map()
-
-    def set_id_attribute(self, *id_attributes):
-        self.id_attributes = id_attributes
 
     def get_perf_info(self, func, id_arg, *args, **kwargs):
         md5 = hashlib.md5()
@@ -390,6 +385,68 @@ class PerformanceProvider(BaseProvider, EventSource):
             )
         )
 
+    def run_func(self, func, id_arg, *args, **kwargs):
+        """
+        This method runs the function `func` from the decorator wrapper, checks the performance of the function and
+        pauses the function when the performance does not meet the defined requirements of response time or when an error occurs.
+        """
+        # get the performance object
+        perf_info = self.get_perf_info(func, id_arg, *args, **kwargs)
+
+        # check if the provider is waiting
+        if perf_info.cycles_to_wait > 0:
+            if perf_info.last_error is None:
+                self.log.warn(
+                    f"The provider is waiting {perf_info.cycles_to_wait} more cycles (the last running time was "
+                    + f"{perf_info.last_running_time:.2f} seconds)."
+                )
+            else:
+                self.log.warn(
+                    f"The provider is waiting {perf_info.cycles_to_wait} more cycles "
+                    + "(the last call resulted with the error)."
+                )
+            perf_info.cycles_to_wait -= 1
+        else:
+            # run the function
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                perf_info.last_running_time = time.time() - start_time
+                perf_info.size = len(result)
+                perf_info.last_error = None
+            except OperationalError as e:
+                self.log.error(f"OperationalError: {e}")
+                perf_info.last_error = str(e)
+
+            # eval the result
+            if perf_info.last_error is not None or perf_info.last_running_time > self.performance_pause.running_time:
+                if perf_info.__cycles_to_wait > 0:
+                    if self.performance_pause.exponential_backoff:
+                        perf_info.__cycles_to_wait *= 2
+                    else:
+                        perf_info.__cycles_to_wait += 1
+                    perf_info.cycles_to_wait = perf_info.__cycles_to_wait
+                else:
+                    perf_info.cycles_to_wait = self.performance_pause.duration_cycles
+                    perf_info.__cycles_to_wait = self.performance_pause.duration_cycles
+                if perf_info.last_error is not None:
+                    self.log.warn(
+                        f"The provider {self.component_id}/{perf_info.id} has failed. "
+                        + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
+                    )
+                else:
+                    self.log.warn(
+                        f"The provider {self.component_id}/{perf_info.id} took {perf_info.last_running_time:.2f} seconds to update the data! "
+                        + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
+                    )
+            else:
+                if perf_info.cycles_to_wait > 0:
+                    self.log.info(f"The provider {self.component_id}/{perf_info.id} is back to normal!")
+                perf_info.cycles_to_wait = 0
+                perf_info.__cycles_to_wait = 0
+
+        self.update_perf(perf_info)
+
 
 def perf_checker(id_arg=None):
     """
@@ -402,67 +459,7 @@ def perf_checker(id_arg=None):
             result = None
             if not isinstance(provider, PerformanceProvider):
                 raise Exception("The performance checker can only be used with PerformanceProvider instances!")
-
-            # get the performance object
-            perf_info = provider.get_perf_info(func, id_arg, *args, **kwargs)
-
-            # check if the provider is waiting
-            if perf_info.cycles_to_wait > 0:
-                if perf_info.last_error is None:
-                    provider.log.warn(
-                        f"The provider is waiting {perf_info.cycles_to_wait} more cycles (the last running time was "
-                        + f"{perf_info.last_running_time:.2f} seconds)."
-                    )
-                else:
-                    provider.log.warn(
-                        f"The provider is waiting {perf_info.cycles_to_wait} more cycles "
-                        + "(the last call resulted with the error)."
-                    )
-                perf_info.cycles_to_wait -= 1
-            else:
-                # run the function
-                start_time = time.time()
-                try:
-                    result = func(*args, **kwargs)
-                    perf_info.last_running_time = time.time() - start_time
-                    perf_info.size = len(result)
-                    perf_info.last_error = None
-                except OperationalError as e:
-                    provider.log.error(f"OperationalError: {e}")
-                    perf_info.last_error = str(e)
-
-                # eval the result
-                if (
-                    perf_info.last_error is not None
-                    or perf_info.last_running_time > provider.performance_pause.running_time
-                ):
-                    if perf_info.__cycles_to_wait > 0:
-                        if provider.performance_pause.exponential_backoff:
-                            perf_info.__cycles_to_wait *= 2
-                        else:
-                            perf_info.__cycles_to_wait += 1
-                        perf_info.cycles_to_wait = perf_info.__cycles_to_wait
-                    else:
-                        perf_info.cycles_to_wait = provider.performance_pause.duration_cycles
-                        perf_info.__cycles_to_wait = provider.performance_pause.duration_cycles
-                    if perf_info.last_error is not None:
-                        provider.log.warn(
-                            f"The provider {provider.component_id}/{perf_info.id} has failed. "
-                            + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
-                        )
-                    else:
-                        provider.log.warn(
-                            f"The provider {provider.component_id}/{perf_info.id} took {perf_info.last_running_time:.2f} seconds to update the data! "
-                            + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
-                        )
-                else:
-                    if perf_info.cycles_to_wait > 0:
-                        provider.log.info(f"The provider {provider.component_id}/{perf_info.id} is back to normal!")
-                    perf_info.cycles_to_wait = 0
-                    perf_info.__cycles_to_wait = 0
-
-            provider.update_perf(perf_info)
-            return result
+            return provider.run_func(func, id_arg, *args, **kwargs)
 
         return wrapper
 
