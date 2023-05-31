@@ -8,6 +8,8 @@ import threading
 import unidecode
 import logging
 import time
+import traceback
+import inspect
 
 from lxml import etree
 from yamc.component import BaseComponent, global_state
@@ -16,6 +18,15 @@ from enum import Enum
 import hashlib
 
 from yamc.utils import Map, deep_find, merge_dicts
+
+
+class OperationalError(Exception):
+    """
+    Exception raised when a provider is in an operational error state.
+    """
+
+    def __init__(self, message):
+        super().__init__(message)
 
 
 class BaseProvider(BaseComponent):
@@ -316,76 +327,146 @@ class PerformanceProvider(BaseProvider, EventSource):
     def __init__(self, config, component_id):
         BaseProvider.__init__(self, config, component_id)
         EventSource.__init__(self)
+        self.id_attributes = []
         self.perf_topic = self.add_topic(f"yamc/performance/providers/{component_id}")
-        self.performance = Map()
-        self.performance.max_running_time = self.config.value("performance.max_running_time", default=0.5)
-        self.performance.exponential_backoff = self.config.value_bool("performance.exponential_backoff", default=False)
+        self.performance_id = None
+
+        # performance pause configuration
+        self.performance_pause = Map(
+            running_time=self.config.value("performance.pause.running_time", default=99999999, required=False),
+            duration_cycles=self.config.value("performance.pause.duration_cycles", default=1, required=False),
+            exponential_backoff=self.config.value(
+                "performance.pause.exponential_backoff", default=False, required=False
+            ),
+        )
         self.perf_objects = Map()
 
-    def get_perf(self, *args, **kwargs):
+    def set_id_attribute(self, *id_attributes):
+        self.id_attributes = id_attributes
+
+    def get_perf_info(self, func, id_arg, *args, **kwargs):
         md5 = hashlib.md5()
-        md5.update(str(args).encode("utf-8") + str(kwargs).encode("utf-8"))
+        md5.update(str(args[1:]).encode("utf-8") + str(kwargs).encode("utf-8"))
         id = md5.hexdigest()
-        self.perf_objects.setdefault(id, Map(running_time=0, last_running_time=0, cycles_to_wait=0, __cycles_to_wait=0))
+        if id not in self.perf_objects.keys():
+            if id_arg is not None:
+                signature = inspect.signature(func)
+                performance_id_value = None
+                if id_arg is not None:
+                    for inx, param in enumerate(signature.parameters.values()):
+                        if param.name == id_arg:
+                            try:
+                                performance_id_value = kwargs.get(id_arg)
+                                if performance_id_value is None:
+                                    performance_id_value = args[inx]
+                                break
+                            except Exception as e:
+                                performance_id_value = None
+                if performance_id_value is None:
+                    self.log.warn(f"The performance id value cannot be found for argument '{id_arg}'!")
+
+            self.perf_objects.setdefault(
+                id,
+                Map(
+                    hash=id,
+                    id=performance_id_value,
+                    last_running_time=0,
+                    cycles_to_wait=0,
+                    size=0,
+                    last_error=None,
+                    __cycles_to_wait=0,
+                ),
+            )
         return self.perf_objects[id]
 
-    def update_perf(self, id, size, running_time):
-        self.perf_topic.update(Map(id=id, size=size, running_time=running_time))
+    def update_perf(self, perf_info):
+        self.perf_topic.update(
+            Map(
+                id=perf_info.id,
+                size=perf_info.size,
+                running_time=perf_info.last_running_time,
+                wait_cycles=perf_info.cycles_to_wait,
+                error=perf_info.last_error if perf_info.last_error else "n/a",
+            )
+        )
 
 
-def perf_checker(func):
+def perf_checker(id_arg=None):
     """
     Decorator for checking the performance of a provider.
     """
 
-    def perf_decorator(*args, **kwargs):
-        instance = args[0]
-        if not isinstance(instance, PerformanceProvider):
-            raise Exception("The performance checker can only be used with PerformanceProvider instances!")
-        try:
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            provider = args[0]
+            result = None
+            if not isinstance(provider, PerformanceProvider):
+                raise Exception("The performance checker can only be used with PerformanceProvider instances!")
+
             # get the performance object
-            perf = instance.get_perf(*args[1:], **kwargs)
+            perf_info = provider.get_perf_info(func, id_arg, *args, **kwargs)
 
             # check if the provider is waiting
-            if perf.cycles_to_wait > 0:
-                instance.log.warn(
-                    f"The provider is waiting {perf.cycles_to_wait} more cycles as the last running time was "
-                    + f"{perf.last_running_time:.2f} seconds!"
-                )
-                perf.cycles_to_wait -= 1
-                result = None
+            if perf_info.cycles_to_wait > 0:
+                if perf_info.last_error is None:
+                    provider.log.warn(
+                        f"The provider is waiting {perf_info.cycles_to_wait} more cycles (the last running time was "
+                        + f"{perf_info.last_running_time:.2f} seconds)."
+                    )
+                else:
+                    provider.log.warn(
+                        f"The provider is waiting {perf_info.cycles_to_wait} more cycles "
+                        + "(the last call resulted with the error)."
+                    )
+                perf_info.cycles_to_wait -= 1
             else:
                 # run the function
                 start_time = time.time()
-                result = func(*args, **kwargs)
-                perf.last_running_time = time.time() - start_time
+                try:
+                    result = func(*args, **kwargs)
+                    perf_info.last_running_time = time.time() - start_time
+                    perf_info.size = len(result)
+                    perf_info.last_error = None
+                except OperationalError as e:
+                    provider.log.error(f"OperationalError: {e}")
+                    perf_info.last_error = str(e)
 
                 # eval the result
-                if perf.last_running_time > instance.performance.max_running_time:
-                    if perf.__cycles_to_wait > 0:
-                        if instance.performance.exponential_backoff:
-                            perf.__cycles_to_wait *= 2
+                if (
+                    perf_info.last_error is not None
+                    or perf_info.last_running_time > provider.performance_pause.running_time
+                ):
+                    if perf_info.__cycles_to_wait > 0:
+                        if provider.performance_pause.exponential_backoff:
+                            perf_info.__cycles_to_wait *= 2
                         else:
-                            perf.__cycles_to_wait += 1
-                        perf.cycles_to_wait = perf.__cycles_to_wait
+                            perf_info.__cycles_to_wait += 1
+                        perf_info.cycles_to_wait = perf_info.__cycles_to_wait
                     else:
-                        perf.cycles_to_wait = 1
-                        perf.__cycles_to_wait = 1
-                    instance.log.warn(
-                        f"The provider {instance.component_id} took {perf.last_running_time:.2f} seconds to update the data! "
-                        + f"Will wait {perf.cycles_to_wait} cycles before next update!"
-                    )
+                        perf_info.cycles_to_wait = provider.performance_pause.duration_cycles
+                        perf_info.__cycles_to_wait = provider.performance_pause.duration_cycles
+                    if perf_info.last_error is not None:
+                        provider.log.warn(
+                            f"The provider {provider.component_id}/{perf_info.id} has failed. "
+                            + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
+                        )
+                    else:
+                        provider.log.warn(
+                            f"The provider {provider.component_id}/{perf_info.id} took {perf_info.last_running_time:.2f} seconds to update the data! "
+                            + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
+                        )
                 else:
-                    if perf.cycles_to_wait > 0:
-                        instance.log.info("The provider is back to normal!")
-                    perf.cycles_to_wait = 0
-                    perf.__cycles_to_wait = 0
+                    if perf_info.cycles_to_wait > 0:
+                        provider.log.info(f"The provider {provider.component_id}/{perf_info.id} is back to normal!")
+                    perf_info.cycles_to_wait = 0
+                    perf_info.__cycles_to_wait = 0
 
-        except Exception as e:
-            raise Exception("Exception in interface: %s" % str(e))
-        return result
+            provider.update_perf(perf_info)
+            return result
 
-    return perf_decorator
+        return wrapper
+
+    return decorator
 
 
 class EventProvider(BaseProvider, EventSource):

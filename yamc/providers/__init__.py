@@ -12,4 +12,5 @@ from .provider import (
     EventProvider,
     StateProvider,
     perf_checker,
+    OperationalError,
 )
