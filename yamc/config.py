@@ -33,6 +33,7 @@ ENV = {}
 
 DEBUG = False
 ANSI_COLORS = True
+TRACEBACK = False
 
 # global exit event
 exit_event = Event()
@@ -451,3 +452,43 @@ class CustomFormatter(logging.Formatter):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+
+def get_logger(name):
+    """
+    Return a logger proxy that will forward the log messages to the logger with the provided name.
+    """
+
+    class LoggingProxy:
+        def __init__(self, name):
+            self.log = logging.getLogger(name)
+
+        def info(self, msg, *args, **kwargs):
+            self.log.info(msg, *args, **kwargs)
+
+        def warning(self, msg, *args, **kwargs):
+            self.log.warning(msg, *args, **kwargs)
+
+        def warn(self, msg, *args, **kwargs):
+            self.log.warn(msg, *args, **kwargs)
+
+        def error(self, msg, *args, **kwargs):
+            kwargs["exc_info"] = yamc_config.TRACEBACK
+            self.log.error(msg, *args, **kwargs)
+
+        def exception(self, msg, *args, exc_info=True, **kwargs):
+            self.log.exception(msg, *args, exc_info=exc_info, **kwargs)
+
+        def critical(self, msg, *args, **kwargs):
+            self.log.critical(msg, *args, **kwargs)
+
+        def fatal(self, msg, *args, **kwargs):
+            self.log.fatal(msg, *args, **kwargs)
+
+        def log(self, level, msg, *args, **kwargs):
+            self.log.log(level, msg, *args, **kwargs)
+
+        def debug(self, msg, *args, **kwargs):
+            self.log.log(logging.DEBUG, msg, *args, **kwargs)
+
+    return LoggingProxy(name)

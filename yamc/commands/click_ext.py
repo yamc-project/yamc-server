@@ -29,6 +29,7 @@ class CoreCommandGroup(click.core.Group):
         # retrieve the global options
         yamc_config.ANSI_COLORS = not ctx.params.pop("no_ansi", False)
         yamc_config.DEBUG = ctx.params.pop("debug", False)
+        yamc_config.TRACEBACK = ctx.params.pop("traceback", False)
 
         # pylint: disable=broad-except
         try:

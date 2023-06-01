@@ -6,8 +6,11 @@ import threading
 import time
 
 from threading import Timer
+from typing import Any
 
 from .utils import merge_dicts, Map, deep_find
+
+from . import config as yamc_config
 
 
 class State:
@@ -21,7 +24,7 @@ class State:
         self.name = name
         self.data = Map()
         self.data_callbacks = []
-        self.log = logging.getLogger("%s" % (name))
+        self.log = yamc_config.get_logger("%s" % (name))
         self.timers = {}
 
     def add_data_callback(self, callback):
@@ -84,7 +87,7 @@ class BaseComponent:
     def __init__(self, config, component_id):
         self.base_config = config
         self.component_id = component_id
-        self.log = logging.getLogger("%s" % (component_id))
+        self.log = yamc_config.get_logger("%s" % (component_id))
         self.enabled = True
 
     def base_scope(self, custom_scope=None):

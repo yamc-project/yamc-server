@@ -16,6 +16,7 @@ from .config import config
 @click.group(cls=CoreCommandGroup)
 @click.option("--no-ansi", "no_ansi", is_flag=True, default=False, help="No ANSI colors.")
 @click.option("-d", "--debug", "debug", is_flag=True, default=False, help="Print debug information.")
+@click.option("--traceback", "traceback", is_flag=True, default=False, help="Print traceback for errors.")
 @click.version_option(version=__version__)
 def yamc():
     pass

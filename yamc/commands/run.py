@@ -38,7 +38,7 @@ import click
 )
 def run(config, env):
     config = Config(config, env, False, "DEBUG" if yamc_config.DEBUG else "INFO")
-    log = logging.getLogger("loop")
+    log = yamc_config.get_logger("loop")
     log.info(f"Yet another metric collector, yamc v{version}")
 
     config.init_config()
