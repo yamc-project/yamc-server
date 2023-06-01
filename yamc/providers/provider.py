@@ -453,9 +453,10 @@ class PerformanceProvider(BaseProvider, EventSource):
 
 def perf_checker(id_arg=None):
     """
-    Decorator for checking the performance of a provider and controlling its operation based on the performance. The decorator
-    must be used with the PerformanceProvider instances only. It calls the `wrapper` method of the provider and checks the
-    performance of the provider. If the performance is not good, the decorator pauses the provider for a defined number of cycles.
+    Decorator for checking the performance of a provider and controlling its operation based on the performance.
+    The decorator must be used with the PerformanceProvider instances only. It calls the `wrapper` method of the
+    provider and checks the performance of the provider. If the performance is not good, the decorator pauses the
+    provider for a defined number of cycles.
     """
 
     def decorator(func):
