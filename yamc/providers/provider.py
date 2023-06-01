@@ -390,6 +390,8 @@ class PerformanceProvider(BaseProvider, EventSource):
         This method runs the function `func` from the decorator wrapper, checks the performance of the function and
         pauses the function when the performance does not meet the defined requirements of response time or when an error occurs.
         """
+        result = None
+
         # get the performance object
         perf_info = self.get_perf_info(func, id_arg, *args, **kwargs)
 
@@ -451,13 +453,14 @@ class PerformanceProvider(BaseProvider, EventSource):
 
 def perf_checker(id_arg=None):
     """
-    Decorator for checking the performance of a provider.
+    Decorator for checking the performance of a provider and controlling its operation based on the performance. The decorator
+    must be used with the PerformanceProvider instances only. It calls the `wrapper` method of the provider and checks the
+    performance of the provider. If the performance is not good, the decorator pauses the provider for a defined number of cycles.
     """
 
     def decorator(func):
         def wrapper(*args, **kwargs):
             provider = args[0]
-            result = None
             if not isinstance(provider, PerformanceProvider):
                 raise Exception("The performance checker can only be used with PerformanceProvider instances!")
             return provider.wrapper(func, id_arg, *args, **kwargs)
