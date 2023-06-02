@@ -125,7 +125,10 @@ class Writer(WorkerComponent):
         """
         self.log.debug(f"Writing data using the following writer definition: {writer_def}")
         if len(writer_def) == 0:
-            raise Exception("Writer defintion is empty!")
+            raise Exception("The writer defintion is empty!")
+        if len(data) == 0:
+            self.log.debug("The data is empty!")
+            return
 
         data_out = []
 

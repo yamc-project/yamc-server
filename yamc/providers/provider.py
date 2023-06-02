@@ -100,9 +100,10 @@ class HttpProvider(BaseProvider):
         except Exception as e:
             self.log.error("The initialization request failed due to %s" % (str(e)))
 
-    def update(self):
+    def update(self, data=None):
         with self.lock:
             if self._updated_time is None or self.data is None or time.time() - self._updated_time > self.max_age:
+                start_time = time.time()
                 self.init_session()
                 num_retries = 0
                 while num_retries < 3:
@@ -124,7 +125,9 @@ class HttpProvider(BaseProvider):
                     else:
                         break
                 # self.log.debug("The url '%s' retrieved the following data: %s"%(self.url,str(r.content.decode(self.encoding))))
-                self.log.debug("The url '%s' retrieved the following data: (strip)" % (self.url))
+                self.log.debug(
+                    f"The url '{self.url}' retrieved the following data in {time.time()-start_time} seconds: (strip)"
+                )
                 self.data = r.content
                 return True
             else:
@@ -144,8 +147,8 @@ class XmlHttpProvider(HttpProvider):
         self.str_decode_unicode = self.config.value("str_decode_unicode", default=True)
         self.xmlroot = None
 
-    def update(self):
-        if super().update() or self.xmlroot is None:
+    def update(self, data=None):
+        if super().update(data=data) or self.xmlroot is None:
             self.xmlroot = etree.fromstring(self.data)
             return True
         else:
@@ -200,8 +203,8 @@ class CsvHttpProvider(HttpProvider):
         self.header = None
         self.lines = None
 
-    def update(self):
-        if super().update():
+    def update(self, data=None):
+        if super().update(data=data):
             # decode the data
             s = self.data.decode(self.encoding)
             if self.str_decode_unicode:
@@ -251,19 +254,19 @@ class Topic:
     and yamc providers and collectors.
     """
 
-    def __init__(self, id, provider):
+    def __init__(self, id, event_source):
         self.topic_id = id
         self.time = 0
         self.data = None
         self.callbacks = []
         self.history = []
-        self.provider = provider
+        self.event_source = event_source
 
     def update(self, data):
         self.time = time.time()
         self.data = data
         self.history.append(data)
-        self.provider.update(self)
+        self.event_source.on_topic_update(topic=self)
         for callback in self.callbacks:
             callback(self)
 
@@ -322,6 +325,9 @@ class EventSource:
         else:
             return None
 
+    def on_topic_update(self, topic=None):
+        pass
+
 
 class PerformanceProvider(BaseProvider, EventSource):
     def __init__(self, config, component_id):
@@ -336,10 +342,12 @@ class PerformanceProvider(BaseProvider, EventSource):
             exponential_backoff=self.config.value(
                 "performance.pause.exponential_backoff", default=False, required=False
             ),
+            max_waiting_cycles=self.config.value("performance.pause.max_waiting_cycles", default=10, required=False),
         )
         self.perf_objects = Map()
 
     def get_perf_info(self, func, id_arg, *args, **kwargs):
+        performance_id_value = ""
         md5 = hashlib.md5()
         md5.update(str(args[1:]).encode("utf-8") + str(kwargs).encode("utf-8"))
         id = md5.hexdigest()
@@ -369,7 +377,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                     cycles_to_wait=0,
                     size=0,
                     last_error=None,
-                    __cycles_to_wait=0,
+                    cycles_to_wait_int=0,
                 ),
             )
         return self.perf_objects[id]
@@ -377,11 +385,11 @@ class PerformanceProvider(BaseProvider, EventSource):
     def update_perf(self, perf_info):
         self.perf_topic.update(
             Map(
-                id=perf_info.id,
-                size=perf_info.size,
-                running_time=perf_info.last_running_time,
-                wait_cycles=perf_info.cycles_to_wait,
-                error=perf_info.last_error if perf_info.last_error else "n/a",
+                id=str(perf_info.id),
+                size=int(perf_info.size),
+                running_time=float(perf_info.last_running_time),
+                wait_cycles=int(perf_info.cycles_to_wait),
+                is_error=True if perf_info.last_error else False,
             )
         )
 
@@ -422,15 +430,17 @@ class PerformanceProvider(BaseProvider, EventSource):
 
             # eval the result
             if perf_info.last_error is not None or perf_info.last_running_time > self.performance_pause.running_time:
-                if perf_info.__cycles_to_wait > 0:
+                if perf_info.cycles_to_wait_int > 0:
                     if self.performance_pause.exponential_backoff:
-                        perf_info.__cycles_to_wait *= 2
+                        perf_info.cycles_to_wait_int *= 2
                     else:
-                        perf_info.__cycles_to_wait += 1
-                    perf_info.cycles_to_wait = perf_info.__cycles_to_wait
+                        perf_info.cycles_to_wait_int += 1
+                    if perf_info.cycles_to_wait_int > self.performance_pause.max_waiting_cycles:
+                        perf_info.cycles_to_wait_int = self.performance_pause.max_waiting_cycles
+                    perf_info.cycles_to_wait = perf_info.cycles_to_wait_int
                 else:
                     perf_info.cycles_to_wait = self.performance_pause.duration_cycles
-                    perf_info.__cycles_to_wait = self.performance_pause.duration_cycles
+                    perf_info.cycles_to_wait_int = self.performance_pause.duration_cycles
                 if perf_info.last_error is not None:
                     self.log.warn(
                         f"The provider {self.component_id}/{perf_info.id} has failed. "
@@ -445,7 +455,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 if perf_info.cycles_to_wait > 0:
                     self.log.info(f"The provider {self.component_id}/{perf_info.id} is back to normal!")
                 perf_info.cycles_to_wait = 0
-                perf_info.__cycles_to_wait = 0
+                perf_info.cycles_to_wait_int = 0
 
         self.update_perf(perf_info)
         return result
@@ -482,7 +492,11 @@ class EventProvider(BaseProvider, EventSource):
         for topic_id in self.config.value("topics"):
             self.add_topic(topic_id)
 
-    def update(self, topic=None):
+    def on_topic_update(self, topic=None):
+        self.update(topic)
+
+    def update(self, data=None):
+        topic = data
         self._updated_time = time.time()
         if self.data is None:
             self.data = Map()
