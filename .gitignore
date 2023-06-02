@@ -20,3 +20,6 @@ yamc.code-workspace
 */*.env
 config/*.yaml
 build
+config/*.properties
+fmw.py
+ds-utility
