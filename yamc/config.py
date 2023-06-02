@@ -267,19 +267,19 @@ class Config:
 
         # initialize scope
         self.log.info("Initializing scope.")
+        if self.custom_functions is not None:
+            for k, v in self.custom_functions.items():
+                self.scope[k] = v
+
         self.scope.select = __select_topics
         self.scope.writers = __load_components("writers")
         self.scope.providers = __load_components("providers")
-        # self.scope.topics = _select_topics
         self.scope.collectors = __load_components("collectors")
         self.scope.all_components = (
             list(self.scope.writers.values())
             + list(self.scope.collectors.values())
             + list(self.scope.providers.values())
         )
-        if self.custom_functions is not None:
-            for k, v in self.custom_functions.items():
-                self.scope[k] = v
 
     def init_logging(self, logs_dir):
         """
