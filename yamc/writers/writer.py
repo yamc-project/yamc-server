@@ -132,35 +132,34 @@ class Writer(WorkerComponent):
             self.log.debug("The data is empty!")
             return
 
+        # preparing data to write
         data_out = []
-
-        def _add_to_queue(data_item: Dict):
+        for data_item in data if isinstance(data, List) else [data]:
             _scope = Map() if scope is None else scope
             _scope.data = data_item
             _data = Map(
                 collector_id=collector_id,
                 data=self.process_conditional_dict(writer_def, self.base_scope(_scope)),
             )
-            data_out.append(_data)
-            if len(_data["data"]) == 0 and not self.write_empty:
-                pass
-            elif self.is_healthy():
-                self.queue.put(_data)
-            else:
-                if not self.disable_backlog:
-                    self.backlog.put([_data])
+            if len(_data["data"]) > 0 or self.write_empty:
+                data_out.append(_data)
 
-        if isinstance(data, List):
-            for data_item in data:
-                _add_to_queue(data_item)
-        else:
-            _add_to_queue(data)
         if len(data_out) == 1:
             self.log.debug(f"The following data will be written out: {str(data_out)}")
         else:
             self.log.debug(
                 f"The following data will be written out (length={len(data_out)}, stripped): {str(data_out[0])}"
             )
+
+        # writing data
+        if self.is_healthy():
+            for d in data_out:
+                self.queue.put(d)
+        else:
+            if not self.disable_backlog:
+                self.backlog.put(data_out)
+
+        # triggering write event
         if self.write_interval == 0:
             self.write_event.set()
 
