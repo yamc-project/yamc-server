@@ -23,7 +23,7 @@ class StateWriter(Writer):
             self.write_interval = 0
 
     def healthcheck(self):
-        pass
+        super().healthcheck()
 
     def do_write(self, items):
         self.log.debug(f"Writing {len(items)} rows to the global state object '{self.name}'")

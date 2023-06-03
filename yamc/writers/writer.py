@@ -32,6 +32,7 @@ class Writer(WorkerComponent):
         self.healthcheck_interval = self.config.value_int("healthcheck_interval", default=20)
         self.disable_backlog = self.config.value_int("disable_backlog", default=False)
         self.batch_size = self.config.value_int("batch_size", default=100)
+        self.disable_writer = self.config.value_int("disable_writer", default=False)
 
         self._is_healthy = False
         self.last_healthcheck = 0
@@ -41,7 +42,8 @@ class Writer(WorkerComponent):
         self.write_event = threading.Event()
 
     def healthcheck(self):
-        pass
+        if self.disable_writer:
+            raise HealthCheckException(f"Writer {self.component_id} is temporarily disabled!")
 
     def is_healthy(self) -> bool:
         if not self._is_healthy and time.time() - self.last_healthcheck > self.healthcheck_interval:

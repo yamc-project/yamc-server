@@ -25,7 +25,7 @@ class CsvWriter(Writer):
         self.csv_writer.addHandler(clazz(**{k: v for k, v in self.handler_def.items() if k != "class"}))
 
     def healthcheck(self):
-        pass
+        super().healthcheck()
 
     def do_write(self, items):
         self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
