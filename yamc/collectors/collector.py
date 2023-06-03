@@ -50,11 +50,6 @@ class BaseCollector(WorkerComponent):
         self.max_history = self.config.value_int("max_history", default=120)
         self.history = []
 
-    def add_time(self, data):
-        if data.get("time") is None:
-            data["time"] = time.time()
-        return data
-
     def prepare_data(self, scope=None):
         _data, data = [], None
         if isinstance(self.data_def, dict):
@@ -74,9 +69,9 @@ class BaseCollector(WorkerComponent):
             return None
         if isinstance(data, list):
             for d in data:
-                _data.append(self.add_time(d))
+                _data.append(d)
         elif isinstance(data, dict):
-            _data.append(self.add_time(data))
+            _data.append(data)
         else:
             raise Exception("The data must be dict or list but it is %s" % type(data))
         if self.max_history > 0:
