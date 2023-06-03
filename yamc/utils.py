@@ -112,6 +112,9 @@ class Map(dict):
         if isinstance(map, dict):
             self.__dict__.update(map)
 
+    def __setstate__(self, state):
+        self.update(state)
+
     def search(self, callback, item=None, expand=None, data=None):
         if item == None:
             item = self
