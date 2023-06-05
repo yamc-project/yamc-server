@@ -293,10 +293,7 @@ class Backlog:
                         )
                     self.remove(batch_files)
                 except Exception as e:
-                    self.log.error(
-                        "Cannot write item from the writer's backlog due to: %s" % (str(e)),
-                        exc_info=self.writer.base_config.debug,
-                    )
+                    self.log.error("Cannot write item from the writer's backlog due to: %s" % (str(e)))
                     self.writer._is_healthy = False
                     break
             self.log.info("The processing of the backlog finished. The backlog size is %s." % self.size())
