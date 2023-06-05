@@ -83,10 +83,12 @@ class BaseCollector(WorkerComponent):
         if data is None:
             self.log.debug("There is no data to write.")
             return
+        _scope = Map() if scope is None else scope
+        _scope["collection"] = Map(time=time.time())
         for w in self.writers.values():
             if w["__writer"] is not None:
                 writer_def = Map({k: v for k, v in w.items() if k != "__writer"})
-                w["__writer"].write(self.component_id, data, writer_def, scope)
+                w["__writer"].write(self.component_id, data, writer_def, _scope)
 
 
 class CronCollector(BaseCollector):
