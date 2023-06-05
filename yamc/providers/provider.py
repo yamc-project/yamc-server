@@ -502,9 +502,9 @@ class EventProvider(BaseProvider, EventSource):
             self.data = Map()
         if topic is None:
             for topic in self.topics.values():
-                self.data[topic.topic_id] = Map(time=topic.time, data=topic.data)
+                self.data[topic.topic_id] = topic.as_dict()  # Map(time=topic.time, data=topic.data)
         else:
-            self.data[topic.topic_id] = Map(time=topic.time, data=topic.data)
+            self.data[topic.topic_id] = topic.as_dict()  # Map(time=topic.time, data=topic.data)
         return True
 
 
