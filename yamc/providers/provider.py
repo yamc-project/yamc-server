@@ -330,6 +330,11 @@ class EventSource:
 
 
 class PerformanceProvider(BaseProvider, EventSource):
+    """
+    Performance provider is a base class for all providers that need to
+    implement performance pause functionality.
+    """
+
     def __init__(self, config, component_id):
         BaseProvider.__init__(self, config, component_id)
         EventSource.__init__(self)
@@ -347,6 +352,9 @@ class PerformanceProvider(BaseProvider, EventSource):
         self.perf_objects = Map()
 
     def get_perf_info(self, func, id_arg, *args, **kwargs):
+        """
+        Returns the performance information for the given function and arguments.
+        """
         performance_id_value = ""
         md5 = hashlib.md5()
         md5.update(str(args[1:]).encode("utf-8") + str(kwargs).encode("utf-8"))
@@ -383,6 +391,9 @@ class PerformanceProvider(BaseProvider, EventSource):
         return self.perf_objects[id]
 
     def update_perf(self, perf_info):
+        """
+        Updates the performance information for the given performance object.
+        """
         self.perf_topic.update(
             Map(
                 id=str(perf_info.id),
