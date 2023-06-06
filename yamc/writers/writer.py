@@ -24,6 +24,11 @@ class HealthCheckException(Exception):
 
 
 class Writer(WorkerComponent):
+    """
+    The base class for all writers. It provides the following functionality: healthcheck, backlog, write queue,
+    write batching.
+    """
+
     def __init__(self, config: Config, component_id: str):
         super().__init__(config, component_id)
         self.config = config.writer(component_id)
@@ -229,6 +234,11 @@ class Writer(WorkerComponent):
 
 
 class Backlog:
+    """
+    Backlog is a queue of items that were not written to the destination due to some error.
+    The items are stored in files in the backlog directory. The files are named items_<id>.data.
+    """
+
     def __init__(self, writer, config):
         self.writer = writer
         self.config = config

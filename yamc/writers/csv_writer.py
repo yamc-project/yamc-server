@@ -13,6 +13,10 @@ manager = logging.Manager(logging.RootLogger(logging.INFO))
 
 
 class CsvWriter(Writer):
+    """
+    Writer that writes data to a CSV file.
+    """
+
     def __init__(self, config, component_id):
         super().__init__(config, component_id)
         self.handler_def = self.config.value("handler")
