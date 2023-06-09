@@ -67,3 +67,6 @@ def expand(data, include=None, exclude=None, convert={}):
         }
 
     return filtered_data
+
+def current_time():
+    return datetime.datetime.now()
