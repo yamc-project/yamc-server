@@ -151,10 +151,12 @@ class Writer(WorkerComponent):
 
         if len(data_out) == 1:
             self.log.debug(f"The following data will be written out: {str(data_out)}")
-        else:
+        elif len(data_out) > 1:
             self.log.debug(
                 f"The following data will be written out (length={len(data_out)}, stripped): {str(data_out[0])}"
             )
+        else:
+            return
 
         # writing data
         if self.is_healthy():
