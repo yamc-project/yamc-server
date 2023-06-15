@@ -69,7 +69,7 @@ class BaseProvider(BaseComponent):
             v.last_value = value
             return 0
 
-    def update(self, data=None):
+    def update(self, **kwargs):
         pass
 
 
@@ -100,7 +100,7 @@ class HttpProvider(BaseProvider):
         except Exception as e:
             self.log.error("The initialization request failed due to %s" % (str(e)))
 
-    def update(self, data=None):
+    def update(self, **kwargs):
         with self.lock:
             if self._updated_time is None or self.data is None or time.time() - self._updated_time > self.max_age:
                 start_time = time.time()
@@ -147,8 +147,8 @@ class XmlHttpProvider(HttpProvider):
         self.str_decode_unicode = self.config.value("str_decode_unicode", default=True)
         self.xmlroot = None
 
-    def update(self, data=None):
-        if super().update(data=data) or self.xmlroot is None:
+    def update(self, **kwargs):
+        if super().update(**kwargs) or self.xmlroot is None:
             self.xmlroot = etree.fromstring(self.data)
             return True
         else:
@@ -203,8 +203,8 @@ class CsvHttpProvider(HttpProvider):
         self.header = None
         self.lines = None
 
-    def update(self, data=None):
-        if super().update(data=data):
+    def update(self, **kwargs):
+        if super().update(**kwargs):
             # decode the data
             s = self.data.decode(self.encoding)
             if self.str_decode_unicode:
@@ -504,10 +504,12 @@ class EventProvider(BaseProvider, EventSource):
             self.add_topic(topic_id)
 
     def on_topic_update(self, topic=None):
-        self.update(topic)
+        self.update(topic=topic)
 
-    def update(self, data=None):
-        topic = data
+    def update(self, *kwargs):
+        topic = kwargs.get("topic")
+        if topic is None:
+            raise Exception("The update method of the EventProvider object must be called with the topic parameter!")
         self._updated_time = time.time()
         if self.data is None:
             self.data = Map()
