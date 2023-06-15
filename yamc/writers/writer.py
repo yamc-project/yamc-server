@@ -142,9 +142,10 @@ class Writer(WorkerComponent):
         for data_item in data if isinstance(data, List) else [data]:
             _scope = Map() if scope is None else scope
             _scope.data = data_item
+            _writer_def = deep_merge(writer_def, {})
             _data = Map(
                 collector_id=collector_id,
-                data=self.process_conditional_dict(writer_def, self.base_scope(_scope)),
+                data=self.process_conditional_dict(_writer_def, self.base_scope(_scope)),
             )
             if len(_data["data"]) > 0 or self.write_empty:
                 data_out.append(_data)
@@ -156,9 +157,7 @@ class Writer(WorkerComponent):
                 f"The following data will be written out (length={len(data_out)}, stripped): {str(data_out[0])}"
             )
         else:
-            self.log.debug(
-                f"No data will be written out. The result of the evaluation is empty."
-            )
+            self.log.debug(f"No data will be written out. The result of the evaluation is empty.")
             return
 
         # writing data
