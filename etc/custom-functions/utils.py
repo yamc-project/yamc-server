@@ -38,21 +38,7 @@ def handle_error(expr, default):
 def expand(data, include=None, exclude=None, convert={}):
     """
     Filter dictionary properties based on include and exclude parameters.
-
-    Args:
-        data (dict): The dictionary to filter.
-        include (list, optional): List of properties to include. Defaults to None.
-        exclude (list, optional): List of properties to exclude. Defaults to None.
-
-    Returns:
-        dict: The filtered dictionary.
     """
-
-    def _convert(k, v):
-        if convert:
-            return convert(k, v)
-        else:
-            return v
 
     filtered_data = {}
 
@@ -67,6 +53,7 @@ def expand(data, include=None, exclude=None, convert={}):
         }
 
     return filtered_data
+
 
 def current_time():
     return datetime.datetime.now()
