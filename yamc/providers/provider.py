@@ -436,7 +436,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 perf_info.size = len(result)
                 perf_info.last_error = None
             except OperationalError as e:
-                self.log.error(f"OperationalError: {e}")
+                self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
                 perf_info.last_error = str(e)
 
             # eval the result
