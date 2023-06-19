@@ -130,11 +130,13 @@ class Writer(WorkerComponent):
         Non-blocking write operation. This method is called from a collector and must be non-blocking
         so that the collector can process collecting of measurements.
         """
-        self.log.debug(f"Writing data using the following writer definition: {writer_def}")
+        self.log.debug(
+            f"Writing data for the collector '{collector_id}' using the following writer definition: {writer_def}"
+        )
         if len(writer_def) == 0:
-            raise Exception("The writer defintion is empty!")
+            raise Exception(f"The writer defintion of the collector '{collector_id}' is empty!")
         if len(data) == 0:
-            self.log.debug("The input data is empty!")
+            self.log.debug(f"The input data from the collector '{collector_id}' is empty!")
             return
 
         # preparing data to write
@@ -157,7 +159,9 @@ class Writer(WorkerComponent):
                 f"The following data will be written out (length={len(data_out)}, stripped): {str(data_out[0])}"
             )
         else:
-            self.log.debug(f"No data will be written out. The result of the evaluation is empty.")
+            self.log.debug(
+                f"No data from the collector '{collector_id}' will be written out. The result of the evaluation is empty."
+            )
             return
 
         # writing data
