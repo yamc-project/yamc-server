@@ -5,7 +5,9 @@ pwd=$(pwd)
 
 rm -fr $pdir/yamc-server/dist/*
 
-find $pdir -depth 1 -type d -name 'yamc*' | grep -v 'yamc-server' | \
+echo "* The parent directory is $pdir"
+
+find $pdir/ -depth 1 -type d -name 'yamc*' | grep -v 'yamc-server' | \
 while read line; do
   echo "* Building $line"
   cd $line
