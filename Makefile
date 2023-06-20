@@ -27,3 +27,6 @@ format:
 all:
 	bin/build-all.sh
 
+test:
+	bin/build-all.sh && bin/test-all.sh
+
