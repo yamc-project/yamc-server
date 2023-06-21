@@ -5,6 +5,7 @@ import socket
 import logging
 import platform
 import hashlib
+import re
 
 DEV_SERVER = "brenta.local"
 
@@ -39,6 +40,28 @@ def expand(data, include=None, exclude=None, convert={}):
     """
     Filter dictionary properties based on include and exclude parameters.
     """
+
+    if include:
+        elements_to_remove = []
+        for k in include:
+            s = re.split("\s*!\s*", k)
+            if len(s) == 2:
+                if s[0] not in convert.keys():
+                    if s[1] == "int":
+                        convert[s[0]] = lambda x: int(x) if x else None
+                    elif s[1] == "float":
+                        convert[s[0]] = lambda x: float(x) if x else None
+                    else:
+                        log.warn(f"Cannot convert {s[0]} to {s[1]} because it is not a valid type.")
+                    elements_to_remove.append(k)
+                    include.append(s[0])
+                else:
+                    log.warn(f"Cannot convert {s[0]} to {s[1]} because it is already defined in the convert dict.")
+            elif len(s) > 2:
+                log.warn(f"Invalid include parameter: {k}")
+
+        for k in elements_to_remove:
+            include.remove(k)
 
     filtered_data = {}
 
