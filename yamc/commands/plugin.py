@@ -6,7 +6,6 @@ import click
 import pkgutil
 import importlib
 import inspect
-import json
 from yamc.json2table import Table
 
 from yamc.writers import Writer

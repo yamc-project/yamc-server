@@ -79,7 +79,7 @@ class BaseCollector(WorkerComponent):
             self.history = self.history[-min(self.max_history, len(self.history)) :]
         return _data
 
-    def write(self, data, scope=None):
+    def write(self, data, scope=None, ignore_healthcheck=False):
         if data is None:
             self.log.debug("There is no data to write.")
             return
@@ -88,7 +88,7 @@ class BaseCollector(WorkerComponent):
         for w in self.writers.values():
             if w["__writer"] is not None:
                 writer_def = Map({k: v for k, v in w.items() if k != "__writer"})
-                w["__writer"].write(self.component_id, data, writer_def, _scope)
+                w["__writer"].write(self.component_id, data, writer_def, _scope, ignore_healthcheck=ignore_healthcheck)
 
 
 class CronCollector(BaseCollector):

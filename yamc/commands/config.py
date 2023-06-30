@@ -7,7 +7,7 @@ import time
 import json
 
 import yamc.config as yamc_config
-
+from .click_ext import BaseCommandConfig
 from yamc import __version__ as version
 
 from yamc.component import WorkerComponent
@@ -18,25 +18,6 @@ import click
 ### common options
 
 
-@click.command("config", help="Config command.")
-@click.option(
-    "-c",
-    "--config",
-    "config",
-    metavar="<file>",
-    is_flag=False,
-    required=True,
-    help="Configuration file",
-)
-@click.option(
-    "-e",
-    "--env",
-    "env",
-    metavar="<file>",
-    is_flag=False,
-    required=False,
-    help="Environment variable file",
-)
-def config(config, env):
-    config = Config(config, env, False, "DEBUG" if yamc_config.DEBUG else "INFO")
+@click.command("config", help="Get configuration details.", cls=BaseCommandConfig)
+def config(config, log):
     print(json.dumps(config.raw_config, indent=4, sort_keys=True, default=str))

@@ -260,3 +260,10 @@ class PathDef:
 def remove_ansi_escape(text):
     ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
     return ansi_escape.sub("", text)
+
+
+def str2bool(s):
+    if type(s) == str:
+        return s.lower() in ["True", "true"]
+    else:
+        raise Exception(f"Invalid type: {type(s)}")

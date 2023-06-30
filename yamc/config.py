@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import imp
 
 from .utils import PythonExpression
-from .utils import deep_find, import_class, Map, deep_merge, merge_dicts
+from .utils import deep_find, import_class, Map, deep_merge, str2bool
 from functools import reduce
 
 import yamc.config as yamc_config
@@ -31,9 +31,16 @@ ENVPARAM_PATTERN = "\$\{%s\}" % ENVNAME_PATTERN
 # consolidated variables supplied via env file and environment variables
 ENV = {}
 
-DEBUG = False
-ANSI_COLORS = True
-TRACEBACK = False
+DEBUG = str2bool(os.getenv("YAMC_DEBUG", "False"))
+ANSI_COLORS = not str2bool(os.getenv("YAMC_NO_ANSI", "False"))
+CONFIG_FILE = os.getenv("YAMC_CONFIG", None)
+CONFIG_ENV = os.getenv("YAMC_ENV", None)
+TRACEBACK = os.getenv("YAMC_TRACEBACK", None)
+YAMC_HOME = os.getenv("YAMC_HOME", "~/.yamc")
+
+env_variables = ["YAMC_DEBUG", "YAMC_NO_ANSI", "YAMC_TRACEBACK", "YAMC_CONFIG", "YAMC_ENV", "YAMC_HOME"]
+
+TEST_MODE = False
 
 # global exit event
 exit_event = Event()
@@ -196,24 +203,19 @@ class Config:
     `collectors` and `writers` configurations.
     """
 
-    def __init__(self, file, env, test, log_level="INFO"):
+    def __init__(self, file, env):
         """
         Read and parse the configuration from the yaml file and initializes the logging.
         """
         self.collectors = {}
         self.writers = {}
         self.providers = {}
-        self.test = test
-        self.log_level = log_level
         self.scope = Map(writers=None, collectors=None, providers=None, all_components=[], topics=None)
 
         if not (os.path.exists(file)):
             raise Exception(f"The configuration file {file} does not exist!")
 
         self.raw_config, self.config_file, self.config_dir = read_raw_config(file, env)
-        self.logs_dir, self.logs_level = self.init_logging(
-            deep_find(self.raw_config, "directories.logs", default="../logs")
-        )
         self.log = logging.getLogger("config")
 
     def init_config(self):
@@ -247,9 +249,6 @@ class Config:
         self.data_dir = self.get_dir_path(self.config.value("directories.data", default="../data"))
         os.makedirs(self.data_dir, exist_ok=True)
 
-        if self.test:
-            self.log.info("Running in test mode, the log output will be in console only.")
-
         # load custom functions
         from inspect import getmembers, isfunction
 
@@ -280,54 +279,6 @@ class Config:
             + list(self.scope.collectors.values())
             + list(self.scope.providers.values())
         )
-
-    def init_logging(self, logs_dir):
-        """
-        Initialize the logging, set the log level and logging directory.
-        """
-        # logs directory
-        logs_dir = self.get_dir_path(logs_dir)
-        os.makedirs(logs_dir, exist_ok=True)
-
-        # log handlers
-        log_handlers = ["file", "console"]
-        if self.test:
-            log_handlers = ["console"]
-
-        # main logs configuration
-        logging.config.dictConfig(
-            {
-                "version": 1,
-                "disable_existing_loggers": True,
-                "formatters": {
-                    "standard": {"format": CustomFormatter.format_header + CustomFormatter.format_msg},
-                    "colored": {"()": CustomFormatter},
-                },
-                "handlers": {
-                    "console": {
-                        "formatter": "colored" if yamc_config.ANSI_COLORS else "standard",
-                        "class": "logging.StreamHandler",
-                        "stream": "ext://sys.stdout",  # Default is stderr
-                    },
-                    "file": {
-                        "formatter": "standard",
-                        "class": "logging.handlers.TimedRotatingFileHandler",
-                        "filename": f"{logs_dir}/yamc.log",
-                        "when": "midnight",
-                        "interval": 1,
-                        "backupCount": 30,
-                    },
-                },
-                "loggers": {
-                    "": {  # all loggers
-                        "handlers": log_handlers,
-                        "level": f"{self.log_level}",
-                        "propagate": False,
-                    }
-                },
-            }
-        )
-        return logs_dir, self.log_level
 
     def get_dir_path(self, path, base_dir=None, check=False):
         """
@@ -452,6 +403,50 @@ class CustomFormatter(logging.Formatter):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+
+def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "console"]):
+    """
+    Initialize the logging, set the log level and logging directory.
+    """
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # log handlers
+    log_handlers = handlers
+
+    # main logs configuration
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": True,
+            "formatters": {
+                "standard": {"format": CustomFormatter.format_header + CustomFormatter.format_msg},
+                "colored": {"()": CustomFormatter},
+            },
+            "handlers": {
+                "console": {
+                    "formatter": "colored" if ANSI_COLORS else "standard",
+                    "class": "logging.StreamHandler",
+                    "stream": "ext://sys.stdout",  # Default is stderr
+                },
+                "file": {
+                    "formatter": "standard",
+                    "class": "logging.handlers.TimedRotatingFileHandler",
+                    "filename": f"{logs_dir}/yamc-{command_name}.log",
+                    "when": "midnight",
+                    "interval": 1,
+                    "backupCount": 30,
+                },
+            },
+            "loggers": {
+                "": {  # all loggers
+                    "handlers": log_handlers,
+                    "level": f"{log_level}",
+                    "propagate": False,
+                }
+            },
+        }
+    )
 
 
 def get_logger(name):

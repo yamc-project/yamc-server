@@ -89,6 +89,7 @@ class BaseComponent:
         self.component_id = component_id
         self.log = yamc_config.get_logger("%s" % (component_id))
         self.enabled = True
+        self.test_mode = yamc_config.TEST_MODE
 
     def base_scope(self, custom_scope=None):
         """

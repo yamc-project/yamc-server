@@ -11,6 +11,7 @@ from .click_ext import CoreCommandGroup
 from .run import run
 from .plugin import plugin
 from .config import config
+from .collector import command_collector
 
 
 @click.group(cls=CoreCommandGroup)
@@ -25,3 +26,4 @@ def yamc():
 yamc.add_command(run)
 yamc.add_command(plugin)
 yamc.add_command(config)
+yamc.add_command(command_collector)

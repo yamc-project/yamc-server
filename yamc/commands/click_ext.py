@@ -11,9 +11,15 @@ import signal
 
 import click
 import traceback
+import logging
 
 import yamc.config as yamc_config
+
+from yamc import __version__ as version
+from yamc.config import Config, init_logging
 from yamc.utils import format_str_color, bcolors
+
+from click import Option
 
 
 class CoreCommandGroup(click.core.Group):
@@ -51,9 +57,85 @@ class CoreCommandGroup(click.core.Group):
                     not yamc_config.ANSI_COLORS,
                 )
             )
-            if yamc_config.DEBUG:
+            if yamc_config.TRACEBACK:
                 print("---")
                 traceback.print_exc()
                 print("---")
 
             sys.exit(1)
+
+
+class BaseCommand(click.core.Command):
+    """
+    The `BaseCommand` is the base class for all commands. It initializes the logger.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if kwargs.get("log_handlers"):
+            self.log_handlers = kwargs.get("log_handlers")
+            kwargs.pop("log_handlers")
+        else:
+            # default log handlers
+            self.log_handlers = ["file", "console"]
+        super().__init__(*args, **kwargs)
+
+    def init_logging(self, command_name):
+        logs_dir = os.path.join(yamc_config.YAMC_HOME, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        init_logging(
+            logs_dir,
+            command_name,
+            log_level="DEBUG" if yamc_config.DEBUG else "INFO",
+            handlers=self.log_handlers,
+        )
+
+    def command_run(self, ctx):
+        self.init_logging(ctx.command.name)
+        self.log = logging.getLogger(ctx.command.name)
+        self.log.info(f"Yet another metric collector, yamc v{version}")
+
+
+class BaseCommandConfig(BaseCommand):
+    """
+    The `BaseCommandConfig` is the base class for all commands that require the configuration file.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.params.insert(
+            0,
+            Option(
+                ("-c", "--config"),
+                metavar="<file>",
+                required=True,
+                help="Configuration file",
+                default=yamc_config.CONFIG_FILE,
+            ),
+        )
+        self.params.insert(
+            0,
+            Option(
+                ("-e", "--env"),
+                metavar="<file>",
+                required=False,
+                help="Environment variable file",
+                default=yamc_config.CONFIG_ENV,
+            ),
+        )
+        self.log = None
+
+    def command_run(self, ctx):
+        super().command_run(ctx)
+        config_file = ctx.params.pop("config")
+        env_file = ctx.params.pop("env")
+        config = Config(config_file, env_file)
+        self.log.info(f"The configuration loaded from {config.config_file}")
+
+        config.init_config()
+
+        ctx.params["config"] = config
+        ctx.params["log"] = self.log
+
+    def invoke(self, ctx):
+        self.command_run(ctx)
+        super().invoke(ctx)
