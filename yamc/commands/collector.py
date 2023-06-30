@@ -68,6 +68,7 @@ def collector_list(config, log):
 @click.option(
     "--limit",
     "limit",
+    metavar="<records>",
     is_flag=False,
     default=0,
     type=int,
@@ -77,6 +78,7 @@ def collector_list(config, log):
 @click.option(
     "--count",
     "count",
+    metavar="<iterations>",
     is_flag=False,
     default=1,
     type=int,
@@ -86,6 +88,7 @@ def collector_list(config, log):
 @click.option(
     "--delay",
     "delay",
+    metavar="<seconds>",
     is_flag=False,
     default=0,
     type=int,
