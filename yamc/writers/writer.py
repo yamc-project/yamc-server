@@ -125,7 +125,9 @@ class Writer(WorkerComponent):
             raise Exception(f"Invalid type of '$def' property in {path}. It must be a list or a dict.")
         return data
 
-    def write(self, collector_id: str, data: List | Dict, writer_def: Dict, scope: Map = None):
+    def write(
+        self, collector_id: str, data: List | Dict, writer_def: Dict, scope: Map = None, ignore_healthcheck=False
+    ):
         """
         Non-blocking write operation. This method is called from a collector and must be non-blocking
         so that the collector can process collecting of measurements.
@@ -165,7 +167,7 @@ class Writer(WorkerComponent):
             return
 
         # writing data
-        if self.is_healthy():
+        if ignore_healthcheck or self.is_healthy():
             for d in data_out:
                 self.queue.put(d)
         else:
@@ -200,7 +202,7 @@ class Writer(WorkerComponent):
                     self.log.debug(
                         "Writing the batch, batch-size=%d, queue-size=%d." % (len(batch), self.queue.qsize())
                     )
-                    if not self.base_config.test:
+                    if not self.test_mode:
                         self.do_write(batch)
                     else:
                         self.log.debug("Running in test mode, the writing operation is disabled.")
@@ -265,7 +267,7 @@ class Backlog:
         self.all_files = files
 
     def put(self, items):
-        if self.writer.base_config.test:
+        if self.writer.test_mode:
             self.log.info("Running in test mode, the backlog item will not be created")
         else:
             file = "items_%s.data" % randomString()
@@ -283,7 +285,7 @@ class Backlog:
         return files, data
 
     def remove(self, files):
-        if not self.writer.base_config.test:
+        if not self.writer.test_mode:
             for file in files:
                 os.remove(os.path.join(self.backlog_dir, file))
         else:
@@ -303,7 +305,7 @@ class Backlog:
             while self.size() > 0:
                 batch_files, batch = self.peek(self.writer.batch_size)
                 try:
-                    if not self.writer.base_config.test:
+                    if not self.writer.test_mode:
                         self.writer.do_write(batch)
                     else:
                         self.log.info(
