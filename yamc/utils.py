@@ -39,7 +39,7 @@ class PythonExpression:
 
     def eval(self, scope):
         try:
-            return eval(self.expr, {}, scope)
+            return eval(self.expr, scope, scope)
         except Exception as e:
             raise Exception(f"Error evaluating expression '{self.expr_str}': {e}")
 
