@@ -267,3 +267,11 @@ def str2bool(s):
         return s.lower() in ["True", "true"]
     else:
         raise Exception(f"Invalid type: {type(s)}")
+
+
+def merge(dict1, dict2):
+    if not dict1:
+        dict1 = {}
+    z = dict1.copy()
+    z.update(dict2)
+    return z
