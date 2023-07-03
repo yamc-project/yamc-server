@@ -16,6 +16,17 @@ import json
 import time
 
 
+def find_collector(config, collector_id, raise_exception=True):
+    collector = None
+    for component in config.scope.all_components:
+        if isinstance(component, BaseCollector) and component.component_id == collector_id:
+            collector = component
+            break
+    if raise_exception and collector is None:
+        raise Exception(f"Collector with ID {collector_id} not found!")
+    return collector
+
+
 @click.group("collector", help="Collector commands.")
 def command_collector():
     pass
@@ -29,6 +40,7 @@ def collector_list(config, log):
             data.append(
                 Map(
                     collector=component.component_id,
+                    clazz=component.__class__.__name__,
                     schedule=component.schedule if isinstance(component, CronCollector) else "--",
                     writers=",".join([w["__writer"].component_id for w in component.writers.values()]),
                 )
@@ -36,20 +48,29 @@ def collector_list(config, log):
 
     table_def = [
         {"name": "COLLECTOR", "value": "{collector}", "help": "Collector ID"},
+        {"name": "CLASS", "value": "{clazz}", "help": "Collector class"},
         {"name": "SCHEDULE", "value": "{schedule}", "help": "Collector ID"},
         {"name": "WRITERS", "value": "{writers}", "help": "List of collector writers"},
     ]
     Table(table_def, None, False).display(data)
 
 
-@click.command("test", help="Show collector data.", cls=BaseCommandConfig, log_handlers=["file"])
-@click.option(
-    "-i",
+@click.command("get", help="Get a collector configuration.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.argument(
     "collector_id",
-    metavar="<id>",
-    is_flag=False,
+    metavar="<collector_id>",
     required=True,
-    help="Collector ID to test",
+)
+def collector_get(config, log, collector_id):
+    collector = find_collector(config, collector_id)
+    print(json.dumps(collector.config._config, indent=4, sort_keys=True, default=str))
+
+
+@click.command("test", help="Show collector data.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.argument(
+    "collector_id",
+    metavar="<collector_id>",
+    required=True,
 )
 @click.option(
     "--provider",
@@ -100,15 +121,7 @@ def collector_test(config, log, collector_id, show_provider, show_writer, limit,
         raise Exception("One of --provider or --writer must be specified!")
 
     yamc_config.TEST_MODE = True
-    collector = None
-    for component in config.scope.all_components:
-        if isinstance(component, BaseCollector) and component.component_id == collector_id:
-            collector = component
-            break
-
-    if collector is None:
-        raise Exception(f"Collector with ID {collector_id} not found!")
-
+    collector = find_collector(config, collector_id)
     _iter = 0
     while True:
         if _iter > 0:
@@ -145,4 +158,5 @@ def collector_test(config, log, collector_id, show_provider, show_writer, limit,
 
 
 command_collector.add_command(collector_list)
+command_collector.add_command(collector_get)
 command_collector.add_command(collector_test)
