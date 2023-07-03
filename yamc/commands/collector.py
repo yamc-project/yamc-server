@@ -73,6 +73,7 @@ def collector_get(config, log, collector_id):
     required=True,
 )
 @click.option(
+    "-p",
     "--provider",
     "show_provider",
     is_flag=True,
@@ -80,6 +81,7 @@ def collector_get(config, log, collector_id):
     help="Show data from collectos' provider",
 )
 @click.option(
+    "-w",
     "--writer",
     "show_writer",
     is_flag=True,
@@ -87,6 +89,7 @@ def collector_get(config, log, collector_id):
     help="Show data from collectos' writers",
 )
 @click.option(
+    "-l",
     "--limit",
     "limit",
     metavar="<records>",
