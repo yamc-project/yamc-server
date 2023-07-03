@@ -40,7 +40,7 @@ CONFIG_ENV = os.getenv("YAMC_ENV", None)
 TRACEBACK = os.getenv("YAMC_TRACEBACK", None)
 YAMC_HOME = os.getenv("YAMC_HOME", "~/.yamc")
 
-env_variables = ["YAMC_DEBUG", "YAMC_NO_ANSI", "YAMC_TRACEBACK", "YAMC_CONFIG", "YAMC_ENV", "YAMC_HOME"]
+env_variables = ["YAMC_HOME", "YAMC_CONFIG", "YAMC_ENV", "YAMC_DEBUG", "YAMC_TRACEBACK", "YAMC_NO_ANSI"]
 
 TEST_MODE = False
 
