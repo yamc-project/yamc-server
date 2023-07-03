@@ -2,6 +2,7 @@
 # @author: Tomas Vitvar, https://vitvar.com, tomas@vitvar.com
 
 import os
+import io
 import sys
 import yaml
 import logging
@@ -9,6 +10,7 @@ import logging.config
 import re
 import warnings
 import json
+import jinja2
 
 from threading import Event
 
@@ -46,6 +48,40 @@ TEST_MODE = False
 exit_event = Event()
 
 
+class Jinja2TemplateLoader(jinja2.BaseLoader):
+    def get_source(self, environment, template):
+        if not os.path.exists(template):
+            raise jinja2.TemplateNotFound(template)
+        with open(template, "r", encoding="utf-8") as f:
+            source = f.read()
+        return source, template, lambda: True
+
+
+class Jinja2Template(io.BytesIO):
+    name = None
+
+    def size(self):
+        self.seek(0, io.SEEK_END)
+        size = self.tell()
+        self.seek(0, io.SEEK_SET)
+        return size
+
+    def __init__(self, file, scope=None, strip_blank_lines=False):
+        super(Jinja2Template, self).__init__(None)
+        self.name = file
+        env = jinja2.Environment(loader=Jinja2TemplateLoader(), trim_blocks=True, lstrip_blocks=True)
+        if scope is not None:
+            env.globals.update(scope)
+        try:
+            content = env.get_template(file).render()
+            if strip_blank_lines:
+                content = "\n".join([x for x in content.split("\n") if x.strip() != ""])
+            self.write(content.encode())
+            self.seek(0)
+        except Exception as e:
+            raise Exception(f"Error when processing template {os.path.basename(file)}: {str(e)}")
+
+
 def get_dir_path(config_dir, path, base_dir=None, check=False):
     """
     Return the directory for the path specified.
@@ -54,6 +90,30 @@ def get_dir_path(config_dir, path, base_dir=None, check=False):
     if check and not os.path.exists(d):
         raise Exception(f"The directory {d} does not exist!")
     return d
+
+
+def jinja2_scope():
+    """
+    Return the scope for the Jinja2 template engine.
+    """
+
+    def range1(n):
+        return range(1, n + 1)
+
+    def property(name):
+        vals = ENV.get(name)
+        if not vals:
+            raise Exception(f"Property '{name}' does not exist!")
+        try:
+            return int(vals)
+        except:
+            return vals
+
+    def non_empty(name):
+        vals = ENV.get(name)
+        return vals is not None and vals.strip() != ""
+
+    return Map(range1=range1, property=property, non_empty=non_empty)
 
 
 def read_raw_config(config_file, env_file):
@@ -75,7 +135,7 @@ def read_raw_config(config_file, env_file):
     yaml.add_constructor("!py", py_constructor)
 
     # read configuration
-    config, config_file = read_complex_config(config_file)
+    config, config_file = read_complex_config(config_file, True, jinja2_scope())
     config_dir = os.path.dirname(config_file)
 
     # add defaults
@@ -86,13 +146,17 @@ def read_raw_config(config_file, env_file):
     return config, config_file, config_dir
 
 
-def read_complex_config(file):
+def read_complex_config(file, use_template=False, scope=None):
     """
     Read complex configuration file by processing `include` instructions.
     """
 
     def _read_yaml(config_file):
-        stream = open(config_file, encoding="utf-8")
+        stream = (
+            open(config_file, "r", encoding="utf-8")
+            if not use_template
+            else Jinja2Template(config_file, scope, strip_blank_lines=True)
+        )
         try:
             return yaml.load(stream, Loader=yaml.FullLoader)
         except Exception as e:
@@ -106,7 +170,10 @@ def read_complex_config(file):
             for k, v in d.items():
                 if k == "include" and isinstance(v, list):
                     for f in v:
-                        result = deep_merge(result, read_complex_config(get_dir_path(config_dir, f))[0])
+                        result = deep_merge(
+                            result,
+                            read_complex_config(get_dir_path(config_dir, f), use_template=use_template, scope=scope)[0],
+                        )
                 elif isinstance(v, dict):
                     result[k] = _traverse(config_dir, v)
                 else:

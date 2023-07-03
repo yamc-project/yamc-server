@@ -24,6 +24,7 @@ install_requires = [
     "pyyaml>=6.0",
     "setuptools_scm>=6.0.1",
     "requests>=2.27.1",
+    "jinja2>=3.1.2",
 ]
 
 setup(
