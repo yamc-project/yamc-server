@@ -18,6 +18,6 @@ import click
 ### common options
 
 
-@click.command("config", help="Get configuration details.", cls=BaseCommandConfig)
+@click.command("config", help="Get configuration details.", cls=BaseCommandConfig, log_handlers=["file"])
 def config(config, log):
     print(json.dumps(config.raw_config, indent=4, sort_keys=True, default=str))
