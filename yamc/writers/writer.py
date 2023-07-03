@@ -9,6 +9,7 @@ import logging
 import re
 import ast
 import pickle
+import yamc.config as yamc_config
 
 from queue import Queue
 from yamc.utils import Map, randomString, PythonExpression, deep_merge
@@ -202,7 +203,7 @@ class Writer(WorkerComponent):
                     self.log.debug(
                         "Writing the batch, batch-size=%d, queue-size=%d." % (len(batch), self.queue.qsize())
                     )
-                    if not self.test_mode:
+                    if not yamc_config.TEST_MODE:
                         self.do_write(batch)
                     else:
                         self.log.debug("Running in test mode, the writing operation is disabled.")
@@ -267,7 +268,7 @@ class Backlog:
         self.all_files = files
 
     def put(self, items):
-        if self.writer.test_mode:
+        if yamc_config.TEST_MODE:
             self.log.info("Running in test mode, the backlog item will not be created")
         else:
             file = "items_%s.data" % randomString()
@@ -285,7 +286,7 @@ class Backlog:
         return files, data
 
     def remove(self, files):
-        if not self.writer.test_mode:
+        if not yamc_config.TEST_MODE:
             for file in files:
                 os.remove(os.path.join(self.backlog_dir, file))
         else:
@@ -305,7 +306,7 @@ class Backlog:
             while self.size() > 0:
                 batch_files, batch = self.peek(self.writer.batch_size)
                 try:
-                    if not self.writer.test_mode:
+                    if not yamc_config.TEST_MODE:
                         self.writer.do_write(batch)
                     else:
                         self.log.info(

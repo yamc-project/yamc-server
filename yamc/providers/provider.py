@@ -10,6 +10,7 @@ import logging
 import time
 import traceback
 import inspect
+import yamc.config as yamc_config
 
 from lxml import etree
 from yamc.component import BaseComponent, global_state
@@ -436,7 +437,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 perf_info.size = len(result)
                 perf_info.last_error = None
             except OperationalError as e:
-                if self.test_mode:
+                if yamc_config.TEST_MODE:
                     raise e
                 self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
                 perf_info.last_error = str(e)
