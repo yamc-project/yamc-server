@@ -136,7 +136,9 @@ def collector_test(config, log, collector_id, show_provider, show_writer, limit,
         print(f"-- retrieving data, iteration: {_iter + 1}/{count}")
         x = time.time()
         data = collector.prepare_data()
-        print(f"-- retrieved {len(data)} records from the provider in {time.time()-x} seconds")
+        print(
+            f"-- retrieved {len(data) if data is not None else 0} records from the provider in {time.time()-x} seconds"
+        )
         if show_provider:
             if isinstance(data, list):
                 data = data[:limit] if limit > 0 else data

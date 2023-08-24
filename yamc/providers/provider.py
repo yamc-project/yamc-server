@@ -434,7 +434,7 @@ class PerformanceProvider(BaseProvider, EventSource):
             try:
                 result = func(*args, **kwargs)
                 perf_info.last_running_time = time.time() - start_time
-                perf_info.size = len(result)
+                perf_info.size = len(result) if result is not None else 0
                 perf_info.last_error = None
             except OperationalError as e:
                 if yamc_config.TEST_MODE:
