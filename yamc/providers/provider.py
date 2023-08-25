@@ -26,8 +26,9 @@ class OperationalError(Exception):
     Exception raised when a provider is in an operational error state.
     """
 
-    def __init__(self, message):
+    def __init__(self, message, original_exception=None):
         super().__init__(message)
+        self.original_exception = original_exception
 
 
 class BaseProvider(BaseComponent):
@@ -437,9 +438,10 @@ class PerformanceProvider(BaseProvider, EventSource):
                 perf_info.size = len(result) if result is not None else 0
                 perf_info.last_error = None
             except OperationalError as e:
+                self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
+                raise e
                 if yamc_config.TEST_MODE:
                     raise e
-                self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
                 perf_info.last_error = str(e)
 
             # eval the result
