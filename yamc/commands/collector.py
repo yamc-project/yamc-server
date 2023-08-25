@@ -83,7 +83,7 @@ def collector_config(config, log, collector_id):
     "show_writer",
     is_flag=True,
     required=False,
-    help="Show data from collectos' writers",
+    help="Show data of writers instead of the provider",
 )
 @click.option(
     "-l",
@@ -116,10 +116,7 @@ def collector_config(config, log, collector_id):
     required=False,
     help="Delay between iterations in seconds",
 )
-def collector_test(config, log, collector_id, show_provider, show_writer, limit, count, delay):
-    if not show_provider and not show_writer:
-        raise Exception("One of --provider or --writer must be specified!")
-
+def collector_data(config, log, collector_id, show_writer, limit, count, delay):
     yamc_config.TEST_MODE = True
     collector = find_collector(config, collector_id)
     _iter = 0
@@ -136,11 +133,11 @@ def collector_test(config, log, collector_id, show_provider, show_writer, limit,
         print(
             f"-- retrieved {len(data) if data is not None else 0} records from the provider in {time.time()-x} seconds"
         )
-        if show_provider:
+        if not show_writer:
             if isinstance(data, list):
                 data = data[:limit] if limit > 0 else data
             print(json.dumps(data, indent=4, sort_keys=True, default=str))
-        elif show_writer:
+        else:
             print(f"-- getting writers data...")
             collector.write(data, ignore_healthcheck=True)
             for writer in collector.writers.values():
@@ -159,6 +156,93 @@ def collector_test(config, log, collector_id, show_provider, show_writer, limit,
             print("++")
 
 
+@click.command("test", help="Test one or more collectors.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.argument(
+    "collector_ids",
+    metavar="<id1 | pattern1, id2 | pattern2, ...>",
+    required=False,
+)
+def collector_test(config, log, collector_ids):
+    yamc_config.TEST_MODE = True
+    # retrieve collectors to test
+    struct = lambda x: Map(
+        collector=x, id=x.component_id, start_time=None, end_time=None, data=None, result=None, status="WAITING"
+    )
+    data = []
+    if collector_ids is not None:
+        id_patterns = [x.strip() for x in collector_ids.split(",")]
+        for component in config.scope.all_components:
+            if isinstance(component, BaseCollector):
+                for pattern in id_patterns:
+                    if re.match(pattern, component.component_id):
+                        data.append(struct(component))
+                        break
+    else:
+        data = [struct(x) for x in config.scope.all_components if isinstance(x, BaseCollector)]
+
+    def _run_collector(item):
+        item.start_time = time.time()
+        try:
+            item.status = "RUNNING"
+            item.data = item.collector.prepare_data()
+            item.status = "DONE"
+            item.result = "OK"
+        except Exception as e:
+            item.status = "ERROR"
+            if isinstance(e, OperationalError) and e.original_exception is not None:
+                item.result = str(e.original_exception).split("\n")[0]
+            else:
+                item.result = str(e)
+        item.end_time = time.time()
+
+    def _format_duration(d, v, e):
+        if e.status == "RUNNING" and e.end_time is None:
+            duration = time.time() - e.start_time
+        elif e.status in ["DONE", "ERROR"]:
+            duration = e.end_time - e.start_time
+        else:
+            return "--"
+        return f"{duration:.2f}"
+
+    def _format_records(d, v, e):
+        if e.status == "DONE":
+            return len(v)
+        else:
+            return "--"
+
+    def _format_size(d, v, e):
+        size = 0
+        if e.data is not None:
+            size = sys.getsizeof(e.data) / 1024
+        return "%.2f" % size
+
+    def _format_result(d, v, e):
+        if v is not None:
+            return v[:100]
+        else:
+            return "--"
+
+    def _format_id(d, v, e):
+        return v[:25]
+
+    table_def = [
+        {"name": "COLLECTOR", "value": "{id}", "format": _format_id, "help": "Collector ID"},
+        {"name": "STATUS", "value": "{status}", "help": "Data retrieval status"},
+        {"name": "TIME [s]", "value": "{d}", "format": _format_duration, "help": "Running duration"},
+        {"name": "RECORDS", "value": "{data}", "format": _format_records, "help": "Number of records retrieved"},
+        {"name": "SIZE [KiB]", "value": "{x}", "format": _format_size, "help": "Size of data"},
+        {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
+    ]
+
+    threads = []
+    for item in data:
+        threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
+        threads[-1].start()
+
+    Table(table_def, None, False).display_cont(data, term_func=lambda: not all([not t.is_alive() for t in threads]))
+
+
 command_collector.add_command(collector_list)
-command_collector.add_command(collector_get)
+command_collector.add_command(collector_config)
+command_collector.add_command(collector_data)
 command_collector.add_command(collector_test)
