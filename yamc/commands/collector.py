@@ -4,16 +4,21 @@
 from yamc.config import Config
 
 import yamc.config as yamc_config
+import re
+import sys
 
 from yamc.collectors import BaseCollector, CronCollector
 from yamc.utils import Map
 from yamc.json2table import Table
+from yamc.providers import OperationalError
+
 
 from .click_ext import BaseCommandConfig
 
 import click
 import json
 import time
+import threading
 
 
 def find_collector(config, collector_id, raise_exception=True):
@@ -55,30 +60,22 @@ def collector_list(config, log):
     Table(table_def, None, False).display(data)
 
 
-@click.command("get", help="Get a collector configuration.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command("config", help="Get a collector configuration.", cls=BaseCommandConfig, log_handlers=["file"])
 @click.argument(
     "collector_id",
     metavar="<collector_id>",
     required=True,
 )
-def collector_get(config, log, collector_id):
+def collector_config(config, log, collector_id):
     collector = find_collector(config, collector_id)
     print(json.dumps(collector.config._config, indent=4, sort_keys=True, default=str))
 
 
-@click.command("test", help="Show collector data.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command("data", help="Retrieve data using collector's provider.", cls=BaseCommandConfig, log_handlers=["file"])
 @click.argument(
     "collector_id",
     metavar="<collector_id>",
     required=True,
-)
-@click.option(
-    "-p",
-    "--provider",
-    "show_provider",
-    is_flag=True,
-    required=False,
-    help="Show data from collectos' provider",
 )
 @click.option(
     "-w",
