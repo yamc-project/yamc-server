@@ -5,8 +5,8 @@ import random
 import string
 import re
 import time
-import threading
 import json
+import ast
 
 from functools import reduce
 
@@ -46,6 +46,10 @@ class PythonExpression:
     def __setstate__(self, state):
         self.expr_str, _ = state
         self.expr = self.compile()
+
+    def ast(self):
+        parsed_code = ast.parse(self.expr_str)
+        return parsed_code
 
     def __str__(self):
         return "!py %s" % self.expr_str
