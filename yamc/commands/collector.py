@@ -6,6 +6,7 @@ from yamc.config import Config
 import yamc.config as yamc_config
 import re
 import sys
+import signal
 
 from yamc.collectors import BaseCollector, CronCollector
 from yamc.utils import Map
@@ -228,6 +229,22 @@ def collector_test(config, log, collector_ids):
     def _format_id(d, v, e):
         return v[:25]
 
+    def _kill():
+        if sys.stdout.isatty():
+            bb = "\b\b"
+        else:
+            bb = ""
+        sys.stdout.write(f"{bb}The command was interrupted.\n")
+        sys.stdout.write(f"{bb}")
+        if sys.stdout.isatty():
+            sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
+        exit(0)
+
+    # kill the process when ctrl+c is pressed
+    # since there are threads that wait on i/o this is the only way to kill the process
+    signal.signal(signal.SIGINT, lambda sig, frame: _kill())
+
     yamc_config.TEST_MODE = True
     struct = lambda x: Map(
         collector=x, id=x.component_id, start_time=None, end_time=None, data=None, result=None, status="WAITING"
@@ -253,12 +270,20 @@ def collector_test(config, log, collector_ids):
         {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
     ]
 
-    threads = []
-    for item in data:
-        threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
-        threads[-1].start()
-
-    Table(table_def, None, False).display_cont(data, term_func=lambda: not all([not t.is_alive() for t in threads]))
+    if sys.stdout.isatty():
+        # hide the cursor
+        sys.stdout.write("\033[?25l")
+    try:
+        threads = []
+        for item in data:
+            threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
+            threads[-1].start()
+        Table(table_def, None, False).display_cont(data, term_func=lambda: not all([not t.is_alive() for t in threads]))
+    finally:
+        if sys.stdout.isatty():
+            # show the cursor
+            sys.stdout.write("\033[?25h")
+            sys.stdout.flush()
 
 
 command_collector.add_command(collector_list)
