@@ -388,6 +388,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                     size=0,
                     last_error=None,
                     cycles_to_wait_int=0,
+                    reason_to_wait=0,
                 ),
             )
         return self.perf_objects[id]
@@ -402,6 +403,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 size=int(perf_info.size) if perf_info.cycles_to_wait == 0 else 0,
                 running_time=float(perf_info.last_running_time) if perf_info.cycles_to_wait == 0 else 0,
                 wait_cycles=int(perf_info.cycles_to_wait),
+                reason_to_wait=perf_info.reason_to_wait,
                 is_error=True if perf_info.last_error and perf_info.cycles_to_wait == 0 else False,
                 error=str(perf_info.last_error) if perf_info.last_error and perf_info.cycles_to_wait == 0 else "-",
             )
@@ -465,16 +467,19 @@ class PerformanceProvider(BaseProvider, EventSource):
                         f"The provider {self.component_id}/{perf_info.id} has failed. "
                         + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
                     )
+                    perf_info.reason_to_wait = 1
                 else:
                     self.log.warn(
                         f"The provider {self.component_id}/{perf_info.id} took {perf_info.last_running_time:.2f} seconds to update the data! "
                         + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
                     )
+                    perf_info.reason_to_wait = 2
             else:
                 if perf_info.cycles_to_wait > 0:
                     self.log.info(f"The provider {self.component_id}/{perf_info.id} is back to normal!")
                 perf_info.cycles_to_wait = 0
                 perf_info.cycles_to_wait_int = 0
+                perf_info.reason_to_wait = 0
 
         self.update_perf(perf_info)
         return result
