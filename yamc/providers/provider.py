@@ -399,10 +399,11 @@ class PerformanceProvider(BaseProvider, EventSource):
         self.perf_topic.update(
             Map(
                 id=str(perf_info.id),
-                size=int(perf_info.size),
-                running_time=float(perf_info.last_running_time),
+                size=int(perf_info.size) if perf_info.cycles_to_wait == 0 else 0,
+                running_time=float(perf_info.last_running_time) if perf_info.cycles_to_wait == 0 else 0,
                 wait_cycles=int(perf_info.cycles_to_wait),
-                is_error=True if perf_info.last_error else False,
+                is_error=True if perf_info.last_error and perf_info.cycles_to_wait == 0 else False,
+                error=str(perf_info.last_error) if perf_info.last_error and perf_info.cycles_to_wait == 0 else "-",
             )
         )
 
@@ -439,10 +440,12 @@ class PerformanceProvider(BaseProvider, EventSource):
                 perf_info.last_error = None
             except OperationalError as e:
                 self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
-                raise e
                 if yamc_config.TEST_MODE:
                     raise e
-                perf_info.last_error = str(e)
+                last_error = str(e)
+                if e.original_exception is not None:
+                    last_error = str(e.original_exception)
+                perf_info.last_error = last_error
 
             # eval the result
             if perf_info.last_error is not None or perf_info.last_running_time > self.performance_pause.running_time:
