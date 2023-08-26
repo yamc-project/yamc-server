@@ -163,23 +163,6 @@ def collector_data(config, log, collector_id, show_writer, limit, count, delay):
     required=False,
 )
 def collector_test(config, log, collector_ids):
-    yamc_config.TEST_MODE = True
-    # retrieve collectors to test
-    struct = lambda x: Map(
-        collector=x, id=x.component_id, start_time=None, end_time=None, data=None, result=None, status="WAITING"
-    )
-    data = []
-    if collector_ids is not None:
-        id_patterns = [x.strip() for x in collector_ids.split(",")]
-        for component in config.scope.all_components:
-            if isinstance(component, BaseCollector):
-                for pattern in id_patterns:
-                    if re.match(pattern, component.component_id):
-                        data.append(struct(component))
-                        break
-    else:
-        data = [struct(x) for x in config.scope.all_components if isinstance(x, BaseCollector)]
-
     def _run_collector(item):
         item.start_time = time.time()
         try:
@@ -224,6 +207,22 @@ def collector_test(config, log, collector_ids):
 
     def _format_id(d, v, e):
         return v[:25]
+
+    yamc_config.TEST_MODE = True
+    struct = lambda x: Map(
+        collector=x, id=x.component_id, start_time=None, end_time=None, data=None, result=None, status="WAITING"
+    )
+    data = []
+    if collector_ids is not None:
+        id_patterns = [x.strip() for x in collector_ids.split(",")]
+        for component in config.scope.all_components:
+            if isinstance(component, BaseCollector):
+                for pattern in id_patterns:
+                    if re.match(pattern, component.component_id):
+                        data.append(struct(component))
+                        break
+    else:
+        data = [struct(x) for x in config.scope.all_components if isinstance(x, BaseCollector)]
 
     table_def = [
         {"name": "COLLECTOR", "value": "{id}", "format": _format_id, "help": "Collector ID"},
