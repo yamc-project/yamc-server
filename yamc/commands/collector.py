@@ -22,6 +22,9 @@ import threading
 
 
 def find_collector(config, collector_id, raise_exception=True):
+    """
+    Finds a collector with the given ID in the configuration.
+    """
     collector = None
     for component in config.scope.all_components:
         if isinstance(component, BaseCollector) and component.component_id == collector_id:
@@ -34,11 +37,17 @@ def find_collector(config, collector_id, raise_exception=True):
 
 @click.group("collector", help="Collector commands.")
 def command_collector():
+    """
+    Collector commands.
+    """
     pass
 
 
 @click.command("list", help="List all collectors.", cls=BaseCommandConfig, log_handlers=["file"])
 def collector_list(config, log):
+    """
+    List all collectors.
+    """
     data = []
     for component in config.scope.all_components:
         if isinstance(component, BaseCollector):
@@ -67,6 +76,9 @@ def collector_list(config, log):
     required=True,
 )
 def collector_config(config, log, collector_id):
+    """
+    Get a collector configuration.
+    """
     collector = find_collector(config, collector_id)
     print(json.dumps(collector.config._config, indent=4, sort_keys=True, default=str))
 
@@ -117,6 +129,10 @@ def collector_config(config, log, collector_id):
     help="Delay between iterations in seconds",
 )
 def collector_data(config, log, collector_id, show_writer, limit, count, delay):
+    """
+    Retrieve data using collector's provider. The data is retrieved from the provider and printed to the console.
+    Alternativelly, the data can be retrieved in the form of the writer's data.
+    """
     yamc_config.TEST_MODE = True
     collector = find_collector(config, collector_id)
     _iter = 0
@@ -163,6 +179,10 @@ def collector_data(config, log, collector_id, show_writer, limit, count, delay):
     required=False,
 )
 def collector_test(config, log, collector_ids):
+    """
+    Test one or more collectors. The collectors are run in parallel and the results are displayed in a table.
+    """
+
     def _run_collector(item):
         item.start_time = time.time()
         try:
