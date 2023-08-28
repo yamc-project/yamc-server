@@ -75,7 +75,6 @@ class PerformanceProvider(BaseProvider, EventSource):
                     last_running_time=0,
                     cycles_to_wait=0,
                     records=0,
-                    size=0,
                     last_error=None,
                     cycles_to_wait_int=0,
                     reason_to_wait=0,
@@ -95,7 +94,6 @@ class PerformanceProvider(BaseProvider, EventSource):
             Map(
                 id=str(perf_info.id),
                 records=int(perf_info.records),
-                size=perf_info.size,
                 running_time=float(perf_info.last_running_time),
                 wait_cycles=int(perf_info.cycles_to_wait),
                 reason_to_wait=perf_info.reason_to_wait,
@@ -134,7 +132,6 @@ class PerformanceProvider(BaseProvider, EventSource):
             perf_info.cycles_to_wait -= 1
             perf_info.last_running_time = 0
             perf_info.records = 0
-            perf_info.size = 0
         else:
             # run the function
             start_time = time.time()
@@ -142,7 +139,6 @@ class PerformanceProvider(BaseProvider, EventSource):
                 result = func(*args, **kwargs)
                 perf_info.last_running_time = time.time() - start_time
                 perf_info.records = len(result) if result is not None else 0
-                perf_info.size = sum(sys.getsizeof(d) for d in result) if result is not None else 0
                 perf_info.last_error = None
             except OperationalError as e:
                 self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
@@ -153,7 +149,6 @@ class PerformanceProvider(BaseProvider, EventSource):
                     last_error = str(e.original_exception)
                 perf_info.last_running_time = 0
                 perf_info.records = 0
-                perf_info.size = 0
                 perf_info.last_error = last_error
 
             # eval the result
