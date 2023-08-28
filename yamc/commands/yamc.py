@@ -12,6 +12,7 @@ from .run import run
 from .plugin import plugin
 from .config import config
 from .collector import command_collector
+from .provider import command_provider
 
 
 @click.group(cls=CoreCommandGroup)
@@ -27,3 +28,4 @@ yamc.add_command(run)
 yamc.add_command(plugin)
 yamc.add_command(config)
 yamc.add_command(command_collector)
+yamc.add_command(command_provider)
