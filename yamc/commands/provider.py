@@ -103,6 +103,9 @@ def find_provider(config, provider_id, raise_exception=True):
 
 
 def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
+    """
+    Get performance data from csv files. The data is filtered by the offset and provider IDs.
+    """
     # time information
     offset_s = offset_seconds(offset)
     latest_modified_time = pd.Timestamp.fromtimestamp(modified_time)
