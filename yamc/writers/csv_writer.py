@@ -32,7 +32,17 @@ class CsvWriter(Writer):
         super().healthcheck()
 
     def do_write(self, items):
+        """
+        Writes the data to the CSV file.
+        """
+
+        def _format_value(v):
+            if isinstance(v, str):
+                return '"' + v.replace('"', '\\"').replace("\n", " ") + '"'
+            else:
+                return str(v)
+
         self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
         for data in items:
-            line = [str(v) for k, v in data.data.items()]
+            line = [_format_value(v) for k, v in data.data.items()]
             self.csv_writer.info(",".join(line))
