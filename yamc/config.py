@@ -385,6 +385,19 @@ class Config:
             )
         return self.providers[provider_id]
 
+    def search(self, base_class, pattern_ids):
+        result = []
+        if pattern_ids is not None:
+            result = [
+                component
+                for component in self.scope.all_components
+                if isinstance(component, base_class)
+                and any(re.match(pattern, component.component_id) for pattern in pattern_ids)
+            ]
+        else:
+            result = [x for x in self.scope.all_components if isinstance(x, base_class)]
+        return result
+
 
 class ConfigPart:
     def __init__(self, parent, base_path, config, config_dir):
