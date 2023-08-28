@@ -3,22 +3,14 @@
 
 import requests
 import time
-import re
 import threading
 import unidecode
-import logging
 import time
-import traceback
-import inspect
-import yamc.config as yamc_config
 
 from lxml import etree
-from yamc.component import BaseComponent, global_state
+from yamc.component import BaseComponent
 
-from enum import Enum
-import hashlib
-
-from yamc.utils import Map, deep_find, merge_dicts
+from yamc.utils import Map
 
 
 class OperationalError(Exception):
@@ -74,6 +66,10 @@ class BaseProvider(BaseComponent):
     def update(self, **kwargs):
         pass
 
+    @property
+    def source(self):
+        return "n/a"
+
 
 class HttpProvider(BaseProvider):
     """
@@ -90,6 +86,10 @@ class HttpProvider(BaseProvider):
         self.session = requests.session()
         self.init_time = None
         self.init_session()
+
+    @property
+    def source(self):
+        return self.url
 
     def init_session(self):
         try:
@@ -248,325 +248,3 @@ class CsvHttpProvider(HttpProvider):
         if col_inx >= 0:
             if abs(row_inx) >= 0 and abs(row_inx) < len(self.lines):
                 return _int_or_float_or_str(self.lines[row_inx][col_inx])
-
-
-class Topic:
-    """
-    Topic object provides a link between a specific pub/sub mechanism (such as MQTT)
-    and yamc providers and collectors.
-    """
-
-    def __init__(self, id, event_source):
-        self.topic_id = id
-        self.time = 0
-        self.data = None
-        self.callbacks = []
-        self.history = []
-        self.event_source = event_source
-
-    def update(self, data):
-        self.time = time.time()
-        self.data = data
-        self.history.append(data)
-        self.event_source.on_topic_update(topic=self)
-        for callback in self.callbacks:
-            callback(self)
-
-    def as_dict(self):
-        return Map(merge_dicts(Map(topic_id=self.topic_id, time=self.time), self.data))
-
-    @property
-    def last(self):
-        return self.history[-1] if len(self.history) > 0 else Map()
-
-    def subscribe(self, callback):
-        self.callbacks.append(callback)
-
-
-class EventSource:
-    """
-    Event source object provides a link between a specific pub/sub mechanism
-    (such as MQTT) and yamc providers.
-    """
-
-    def __init__(self):
-        self.topics = Map()
-
-    def add_topic(self, topic_id):
-        if self.topics.get(topic_id) is not None:
-            raise Exception(f"The topic with id {topic_id} already exists!")
-        topic = self.create_topic(topic_id)
-        self.topics[topic_id] = topic
-        return topic
-
-    def create_topic(self, topic_id):
-        return Topic(topic_id, self)
-
-    def select(self, *ids, silent=False):
-        sources = []
-        for id in ids:
-            found = False
-            topic = self.topics.get(id)
-            if topic is not None:
-                sources.append(topic)
-                found = True
-            else:
-                for k, v in self.topics.items():
-                    if re.match(id, k):
-                        found = True
-                        if v not in sources:
-                            sources.append(v)
-            # if not found and not silent:
-            #     self.log.warn(f"The topic with pattern '{id}' cannot be found!")
-        return sources
-
-    def select_one(self, id):
-        topics = self.select(id, silent=True)
-        if len(topics) > 0:
-            return topics[0]
-        else:
-            return None
-
-    def on_topic_update(self, topic=None):
-        pass
-
-
-class PerformanceProvider(BaseProvider, EventSource):
-    """
-    Performance provider is a base class for all providers that need to
-    implement performance pause functionality.
-    """
-
-    def __init__(self, config, component_id):
-        BaseProvider.__init__(self, config, component_id)
-        EventSource.__init__(self)
-        self.perf_topic = self.add_topic(f"yamc/performance/providers/{component_id}")
-
-        # performance pause configuration
-        self.performance_pause = Map(
-            running_time=self.config.value("performance.pause.running_time", default=99999999, required=False),
-            duration_cycles=self.config.value("performance.pause.duration_cycles", default=1, required=False),
-            exponential_backoff=self.config.value(
-                "performance.pause.exponential_backoff", default=False, required=False
-            ),
-            max_waiting_cycles=self.config.value("performance.pause.max_waiting_cycles", default=10, required=False),
-        )
-        self.perf_objects = Map()
-
-    def get_perf_info(self, func, id_arg, *args, **kwargs):
-        """
-        Returns the performance information for the given function and arguments.
-        """
-        performance_id_value = ""
-        md5 = hashlib.md5()
-        md5.update(str(args[1:]).encode("utf-8") + str(kwargs).encode("utf-8"))
-        id = md5.hexdigest()
-        if id not in self.perf_objects.keys():
-            if id_arg is not None:
-                signature = inspect.signature(func)
-                performance_id_value = None
-                if id_arg is not None:
-                    for inx, param in enumerate(signature.parameters.values()):
-                        if param.name == id_arg:
-                            try:
-                                performance_id_value = kwargs.get(id_arg)
-                                if performance_id_value is None:
-                                    performance_id_value = args[inx]
-                                break
-                            except Exception as e:
-                                performance_id_value = None
-                if performance_id_value is None:
-                    self.log.warn(f"The performance id value cannot be found for argument '{id_arg}'!")
-
-            self.perf_objects.setdefault(
-                id,
-                Map(
-                    hash=id,
-                    id=performance_id_value,
-                    last_running_time=0,
-                    cycles_to_wait=0,
-                    size=0,
-                    last_error=None,
-                    cycles_to_wait_int=0,
-                    reason_to_wait=0,
-                ),
-            )
-        return self.perf_objects[id]
-
-    def update_perf(self, perf_info):
-        """
-        Updates the performance information for the given performance object.
-        """
-        self.perf_topic.update(
-            Map(
-                id=str(perf_info.id),
-                size=int(perf_info.size) if perf_info.cycles_to_wait == 0 else 0,
-                running_time=float(perf_info.last_running_time) if perf_info.cycles_to_wait == 0 else 0,
-                wait_cycles=int(perf_info.cycles_to_wait),
-                reason_to_wait=perf_info.reason_to_wait,
-                is_error=True if perf_info.last_error and perf_info.cycles_to_wait == 0 else False,
-                error=str(perf_info.last_error) if perf_info.last_error and perf_info.cycles_to_wait == 0 else "-",
-            )
-        )
-
-    def wrapper(self, func, id_arg, *args, **kwargs):
-        """
-        This method runs the function `func` from the decorator wrapper, checks the performance of the function and
-        pauses the function when the performance does not meet the defined requirements of response time or when an error occurs.
-        """
-        result = None
-
-        # get the performance object
-        perf_info = self.get_perf_info(func, id_arg, *args, **kwargs)
-
-        # check if the provider is waiting
-        if perf_info.cycles_to_wait > 0:
-            if perf_info.last_error is None:
-                self.log.warn(
-                    f"The provider is waiting {perf_info.cycles_to_wait} more cycles (the last running time was "
-                    + f"{perf_info.last_running_time:.2f} seconds)."
-                )
-            else:
-                self.log.warn(
-                    f"The provider is waiting {perf_info.cycles_to_wait} more cycles "
-                    + "(the last call resulted with the error)."
-                )
-            perf_info.cycles_to_wait -= 1
-        else:
-            # run the function
-            start_time = time.time()
-            try:
-                result = func(*args, **kwargs)
-                perf_info.last_running_time = time.time() - start_time
-                perf_info.size = len(result) if result is not None else 0
-                perf_info.last_error = None
-            except OperationalError as e:
-                self.log.error(f"Operational error in the provider '{self.component_id}/{perf_info.id}': {e}")
-                if yamc_config.TEST_MODE:
-                    raise e
-                last_error = str(e)
-                if e.original_exception is not None:
-                    last_error = str(e.original_exception)
-                perf_info.last_error = last_error
-
-            # eval the result
-            if perf_info.last_error is not None or perf_info.last_running_time > self.performance_pause.running_time:
-                if perf_info.cycles_to_wait_int > 0:
-                    if self.performance_pause.exponential_backoff:
-                        perf_info.cycles_to_wait_int *= 2
-                    else:
-                        perf_info.cycles_to_wait_int += 1
-                    if perf_info.cycles_to_wait_int > self.performance_pause.max_waiting_cycles:
-                        perf_info.cycles_to_wait_int = self.performance_pause.max_waiting_cycles
-                    perf_info.cycles_to_wait = perf_info.cycles_to_wait_int
-                else:
-                    perf_info.cycles_to_wait = self.performance_pause.duration_cycles
-                    perf_info.cycles_to_wait_int = self.performance_pause.duration_cycles
-                if perf_info.last_error is not None:
-                    self.log.warn(
-                        f"The provider {self.component_id}/{perf_info.id} has failed. "
-                        + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
-                    )
-                    perf_info.reason_to_wait = 1
-                else:
-                    self.log.warn(
-                        f"The provider {self.component_id}/{perf_info.id} took {perf_info.last_running_time:.2f} seconds to update the data! "
-                        + f"Will wait {perf_info.cycles_to_wait} cycles before next update!"
-                    )
-                    perf_info.reason_to_wait = 2
-            else:
-                if perf_info.cycles_to_wait > 0:
-                    self.log.info(f"The provider {self.component_id}/{perf_info.id} is back to normal!")
-                perf_info.cycles_to_wait = 0
-                perf_info.cycles_to_wait_int = 0
-                perf_info.reason_to_wait = 0
-
-        self.update_perf(perf_info)
-        return result
-
-
-def perf_checker(id_arg=None):
-    """
-    Decorator for checking the performance of a provider and controlling its operation based on the performance.
-    The decorator must be used with the PerformanceProvider instances only. It calls the `wrapper` method of the
-    provider and checks the performance of the provider. If the performance is not good, the decorator pauses the
-    provider for a defined number of cycles.
-    """
-
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            provider = args[0]
-            if not isinstance(provider, PerformanceProvider):
-                raise Exception("The performance checker can only be used with PerformanceProvider instances!")
-            return provider.wrapper(func, id_arg, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-class EventProvider(BaseProvider, EventSource):
-    """
-    Event data provider providing the base class for event-based providers.
-    """
-
-    def __init__(self, config, component_id):
-        BaseProvider.__init__(self, config, component_id)
-        EventSource.__init__(self)
-        for topic_id in self.config.value("topics"):
-            self.add_topic(topic_id)
-
-    def on_topic_update(self, topic=None):
-        self.update(topic=topic)
-
-    def update(self, *kwargs):
-        topic = kwargs.get("topic")
-        if topic is None:
-            raise Exception("The update method of the EventProvider object must be called with the topic parameter!")
-        self._updated_time = time.time()
-        if self.data is None:
-            self.data = Map()
-        if topic is None:
-            for topic in self.topics.values():
-                self.data[topic.topic_id] = topic.as_dict()  # Map(time=topic.time, data=topic.data)
-        else:
-            self.data[topic.topic_id] = topic.as_dict()  # Map(time=topic.time, data=topic.data)
-        return True
-
-
-class StateProvider(EventProvider):
-    """
-    Event provider for the state object. It can be used to subscribe to topics
-    that correspond to paths in the state object data dict. When the state object data
-    change, the state provider gets notified via `on_data` method and updates the
-    corresponding topic's data.
-    """
-
-    def __init__(self, config, component_id):
-        super().__init__(config, component_id)
-        self.name = self.config.value("name")
-
-        # get the state object and register the data callback on it
-        self.state = global_state.get_state(self.name, self)
-        self.state.add_data_callback(self.on_data)
-
-    def get(self, path):
-        return deep_find(self.state.data, path, default=None, delim="/")
-
-    def on_data(self, data):
-        def _walk(d, callback, path=""):
-            if path != "":
-                callback(path, d)
-            if isinstance(d, dict):
-                for k, v in d.items():
-                    _walk(v, callback, path=f"{path}{k}/")
-            elif isinstance(d, list):
-                for num, x in enumerate(d, start=0):
-                    _walk(x, callback, path=f"{path}[{num}]/")
-
-        def _update_topic(path, data):
-            for topic in self.topics.values():
-                if topic.topic_id == path[:-1]:
-                    topic.update(data)
-
-        _walk(data, _update_topic)

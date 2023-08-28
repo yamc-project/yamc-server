@@ -6,11 +6,17 @@ from .provider import (
     HttpProvider,
     XmlHttpProvider,
     CsvHttpProvider,
+    OperationalError,
+)
+
+from .event import (
     Topic,
-    PerformanceProvider,
     EventSource,
     EventProvider,
     StateProvider,
+)
+
+from .performance import (
+    PerformanceProvider,
     perf_checker,
-    OperationalError,
 )

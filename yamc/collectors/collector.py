@@ -97,7 +97,6 @@ class CronCollector(BaseCollector):
         self.schedule = self.config.value_str("schedule", required=True)
         if not croniter.croniter.is_valid(self.schedule):
             raise Exception("The value of schedule property '%s' is not valid!" % self.schedule)
-        self.log.info("The cron schedule is %s" % (self.schedule))
 
     def get_time_to_sleep(self, itr):
         while True:
@@ -113,6 +112,7 @@ class CronCollector(BaseCollector):
         return seconds
 
     def worker(self, exit_event):
+        self.log.info("Starting the cron collector thread. The cron schedule is %s" % (self.schedule))
         itr = croniter.croniter(self.schedule, datetime.now())
         time2sleep = self.get_time_to_sleep(itr)
         while not exit_event.is_set():
@@ -141,15 +141,17 @@ class EventCollector(BaseCollector):
         elif not isinstance(self.source, Topic):
             raise Exception(f"The data must be of type {Topic.__class__.__name__}")
 
-        self.log.info("The event sources are: %s" % (", ".join([x.topic_id for x in self.source])))
-
     def worker(self, exit_event):
         def _event(e):
             self.log.info(f"Received event {e.topic_id}")
             self.write(e.as_dict(), scope=Map(data=e.as_dict()))
 
+        self.log.info("Starting the event collector thread.")
+        self.log.info(
+            "Subscribing to events from the following event sources: %s"
+            % (", ".join([x.topic_id for x in self.source]))
+        )
         for s in self.source:
-            self.log.info(f"Subscribing to events from '{s.topic_id}'")
             s.subscribe(_event)
         while not exit_event.is_set():
             exit_event.wait(1)
