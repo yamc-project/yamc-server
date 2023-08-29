@@ -57,14 +57,14 @@ class CsvWriter(Writer):
     def __init__(self, config, component_id):
         super().__init__(config, component_id)
         self.handler_def = self.config.value("handler")
-        clazz = import_class(self.handler_def["class"])
+        self.handler_class = import_class(self.handler_def["class"])
         self.csv_writer = manager.getLogger(f"CsvWriter_{randomString()}")
         self.csv_writer.setLevel(logging.INFO)
         if "filename" in self.handler_def:
             self.handler_def["filename"] = self.config.get_dir_path(self.handler_def["filename"], check=False)
             os.makedirs(os.path.dirname(self.handler_def["filename"]), exist_ok=True)
-        handler = clazz(**{k: v for k, v in self.handler_def.items() if k != "class"})
-        self.csv_writer.addHandler(handler)
+        self.initialized = False
+        self.disabled = False
 
     def healthcheck(self):
         super().healthcheck()
@@ -82,7 +82,17 @@ class CsvWriter(Writer):
             else:
                 return str(v)
 
-        self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
-        for data in items:
-            line = [_format_value(v) for k, v in data.data.items()]
-            self.csv_writer.info(",".join(line))
+        if not self.initialized and not self.disabled:
+            try:
+                handler = self.handler_class(**{k: v for k, v in self.handler_def.items() if k != "class"})
+                self.csv_writer.addHandler(handler)
+                self.initialized = True
+            except Exception as e:
+                self.log.error(f"Error initializing the CSV writer: {e}. The writer will be disabled.")
+                self.disabled = True
+
+        if self.initialized:
+            self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
+            for data in items:
+                line = [_format_value(v) for k, v in data.data.items()]
+                self.csv_writer.info(",".join(line))
