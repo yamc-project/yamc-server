@@ -8,6 +8,7 @@ import inspect
 import hashlib
 
 from yamc.utils import Map
+from datetime import datetime
 
 from .provider import BaseProvider, OperationalError
 from .event import EventSource
@@ -71,6 +72,7 @@ class PerformanceProvider(BaseProvider, EventSource):
                 _id,
                 Map(
                     hash=_id,
+                    started_time=None,
                     id=performance_id_value,
                     last_running_time=0,
                     cycles_to_wait=0,
@@ -93,6 +95,7 @@ class PerformanceProvider(BaseProvider, EventSource):
         self.perf_topic.update(
             Map(
                 id=str(perf_info.id),
+                started_time=perf_info.started_time,
                 records=int(perf_info.records),
                 running_time=float(perf_info.last_running_time),
                 wait_cycles=int(perf_info.cycles_to_wait),
@@ -112,6 +115,7 @@ class PerformanceProvider(BaseProvider, EventSource):
         # get the performance object
         perf_info = self.get_perf_info(func, id_arg, *args, **kwargs)
         perf_info.last_error = None
+        perf_info.started_time = datetime.now()
 
         # check if the provider is waiting
         if perf_info.cycles_to_wait > 0:

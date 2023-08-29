@@ -7,9 +7,46 @@ import os
 
 from .writer import Writer, HealthCheckException
 from yamc.utils import import_class, randomString
+from datetime import datetime
+
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 # we need a new manager not to mess up with yamc logging configuration
 manager = logging.Manager(logging.RootLogger(logging.INFO))
+
+
+class CsvRotatingFileHandler(RotatingFileHandler):
+    """
+    Rotating file handler that writes a header to the file if the file is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.header = kwargs.pop("header", None)
+        super().__init__(*args, **kwargs)
+
+    def _open(self):
+        handler = super()._open()
+        if handler.tell() == 0 and self.header is not None:
+            handler.write(self.header + "\n")
+            handler.flush()
+        return handler
+
+
+class CsvTimeRotatingFileHandler(TimedRotatingFileHandler):
+    """
+    Time rotating file handler that writes a header to the file if the file is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.header = kwargs.pop("header", None)
+        super().__init__(*args, **kwargs)
+
+    def _open(self):
+        handler = super()._open()
+        if handler.tell() == 0 and self.header is not None:
+            handler.write(self.header + "\n")
+            handler.flush()
+        return handler
 
 
 class CsvWriter(Writer):
@@ -26,7 +63,8 @@ class CsvWriter(Writer):
         if "filename" in self.handler_def:
             self.handler_def["filename"] = self.config.get_dir_path(self.handler_def["filename"], check=False)
             os.makedirs(os.path.dirname(self.handler_def["filename"]), exist_ok=True)
-        self.csv_writer.addHandler(clazz(**{k: v for k, v in self.handler_def.items() if k != "class"}))
+        handler = clazz(**{k: v for k, v in self.handler_def.items() if k != "class"})
+        self.csv_writer.addHandler(handler)
 
     def healthcheck(self):
         super().healthcheck()
@@ -39,6 +77,8 @@ class CsvWriter(Writer):
         def _format_value(v):
             if isinstance(v, str):
                 return '"' + v.replace('"', '\\"').replace("\n", " ") + '"'
+            elif isinstance(v, datetime):
+                return '"' + str(v) + '"'
             else:
                 return str(v)
 

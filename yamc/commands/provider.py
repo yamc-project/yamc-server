@@ -18,14 +18,14 @@ from datetime import timedelta
 from .click_ext import BaseCommandConfig
 
 PERF_CSV_COLUMNS_DEF = {
+    "Time": str,
     "Provider": None,
-    "Time": float,
     "Id": str,
-    "Records": int,
     "Duration": float,
+    "Records": int,
     "WaitingCycles": int,
-    "ReasonToWait": int,
     "Error": None,
+    "ReasonToWait": int,
     "ErrorMessage": str,
 }
 
@@ -120,14 +120,14 @@ def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
         if last_modified_time >= reference_time:
             df = pd.read_csv(
                 csv_file,
-                header=None,
+                header=1,
                 quotechar='"',
                 escapechar="\\",
                 names=[x for x in PERF_CSV_COLUMNS_DEF.keys()],
                 dtype={k: v for k, v in PERF_CSV_COLUMNS_DEF.items() if v is not None},
-                converters={0: lambda v: v.split("/")[-1], 7: lambda v: str_bool(v)},
+                converters={1: lambda v: v.split("/")[-1], 6: lambda v: str_bool(v)},
             )
-            df["Time"] = pd.to_datetime(df["Time"], unit="s")
+            df["Time"] = pd.to_datetime(df["Time"])
             df = df[df["Provider"].isin(provider_ids)]
             df.set_index("Time", inplace=True)
             dfs.append(df)
