@@ -79,19 +79,20 @@ class BaseCommand(click.core.Command):
             self.log_handlers = ["file", "console"]
         super().__init__(*args, **kwargs)
 
-    def init_logging(self, command_name):
-        logs_dir = os.path.join(yamc_config.YAMC_HOME, "logs")
+    def init_logging(self, command_path):
+        logs_dir = os.path.join(yamc_config.YAMC_HOME, "logs", "-".join(command_path.split(" ")[1:]))
         os.makedirs(logs_dir, exist_ok=True)
+        filename_suffix = "-".join(command_path.split(" ")[1:])
         init_logging(
             logs_dir,
-            command_name,
+            filename_suffix,
             log_level="DEBUG" if yamc_config.DEBUG else "INFO",
             handlers=self.log_handlers,
         )
 
     def command_run(self, ctx):
-        self.init_logging(ctx.command.name)
-        self.log = logging.getLogger(ctx.command.name)
+        self.init_logging(ctx.command_path)
+        self.log = yamc_config.get_logger(ctx.command.name)
         self.log.info(f"Yet another metric collector, yamc v{version}")
 
 
