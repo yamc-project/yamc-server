@@ -6,6 +6,7 @@ import threading
 import croniter
 import sys
 import copy
+import queue
 
 from datetime import datetime
 from yamc.component import WorkerComponent
@@ -133,6 +134,7 @@ class CronCollector(BaseCollector):
 class EventCollector(BaseCollector):
     def __init__(self, config, component_id):
         super().__init__(config, component_id)
+        self.queue = queue.Queue()
         if not isinstance(self.data_def, PythonExpression):
             raise Exception(f"The data must be of type {PythonExpression.__class__.__name__}")
 
@@ -146,16 +148,21 @@ class EventCollector(BaseCollector):
             raise Exception(f"The data must be of type {Topic.__class__.__name__}")
 
     def worker(self, exit_event):
-        def _event(e):
-            self.log.info(f"Received event {e.topic_id}")
-            self.write(e.as_dict(), scope=Map(data=e.as_dict()))
-
         self.log.info("Starting the event collector thread.")
         self.log.info(
             "Subscribing to events from the following event sources: %s"
             % (", ".join([x.topic_id for x in self.source]))
         )
         for s in self.source:
-            s.subscribe(_event)
+            s.subscribe(self.queue)
         while not exit_event.is_set():
+            try:
+                data = self.queue.get(block=False)
+                self.last_collection_time = time.time()
+                self.log.info(f"Received event {data.topic_id}")
+                self.write(data, scope=Map(data=data))
+                self.queue.task_done()
+                continue
+            except queue.Empty:
+                pass
             exit_event.wait(1)

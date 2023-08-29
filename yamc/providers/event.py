@@ -24,22 +24,19 @@ class Topic:
         self.topic_id = id
         self.time = 0
         self.data = None
-        self.callbacks = []
+        self.subscribers = []
         self.history = []
         self.event_source = event_source
         self.lock = Lock()
 
     def update(self, data):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self.time = time.time()
             self.data = data
             self.history.append(data)
             self.event_source.on_topic_update(topic=self)
-            for callback in self.callbacks:
-                callback(self)
-        finally:
-            self.lock.release()
+            for queue in self.subscribers:
+                queue.put(self.as_dict())
 
     def as_dict(self):
         return Map(merge_dicts(Map(topic_id=self.topic_id, time=self.time), self.data))
@@ -48,8 +45,8 @@ class Topic:
     def last(self):
         return self.history[-1] if len(self.history) > 0 else Map()
 
-    def subscribe(self, callback):
-        self.callbacks.append(callback)
+    def subscribe(self, queue):
+        self.subscribers.append(queue)
 
 
 class EventSource:
