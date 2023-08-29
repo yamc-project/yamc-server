@@ -262,11 +262,13 @@ def provider_perf(config, log, provider_ids, perf_dir, offset):
 
     providers = config.search(BaseProvider, provider_ids)
     provider_ids = [x.component_id for x in providers]
+    log.info(f"Will use the following providers to analyze performance: {provider_ids}")
 
     # get of all csv files
     csv_files = [os.path.join(perf_dir, filename) for filename in os.listdir(perf_dir)]
-    log.info(f"There are {len(csv_files)} files in the directory.")
-    if len(csv_files) == 0:
+    log.info(f"There are {len(csv_files)} csv files in the directory.")
+    if len(csv_files) == 0 or len(provider_ids) == 0:
+        log.info(f"No performance data found.")
         print("No performance data found.")
         return
     modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
