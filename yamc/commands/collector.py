@@ -56,6 +56,7 @@ def collector_list(config, log):
                 Map(
                     collector=component.component_id,
                     clazz=component.__class__.__name__,
+                    status="ENABLED" if component.enabled else "DISABLED",
                     schedule=component.schedule if isinstance(component, CronCollector) else "--",
                     writers=",".join([w["__writer"].component_id for w in component.writers.values()]),
                 )
@@ -64,6 +65,7 @@ def collector_list(config, log):
     table_def = [
         {"name": "COLLECTOR", "value": "{collector}", "help": "Collector ID"},
         {"name": "CLASS", "value": "{clazz}", "help": "Collector class"},
+        {"name": "STATUS", "value": "{status}", "help": "Collector status"},
         {"name": "SCHEDULE", "value": "{schedule}", "help": "Collector ID"},
         {"name": "WRITERS", "value": "{writers}", "help": "List of collector writers"},
     ]
@@ -129,13 +131,22 @@ def collector_config(config, log, collector_id):
     required=False,
     help="Delay between iterations in seconds",
 )
-def collector_data(config, log, collector_id, show_writer, limit, count, delay):
+@click.option(
+    "--force",
+    "force",
+    is_flag=True,
+    required=False,
+    help="Collect data regardless of the collector's status",
+)
+def collector_data(config, log, collector_id, show_writer, limit, count, delay, force):
     """
     Retrieve data using collector's provider. The data is retrieved from the provider and printed to the console.
     Alternativelly, the data can be retrieved in the form of the writer's data.
     """
     yamc_config.TEST_MODE = True
     collector = find_collector(config, collector_id)
+    if not collector.enabled and not force:
+        raise Exception("The collector is disabled! Use --force option to force the data collection.")
     _iter = 0
     while True:
         if _iter > 0:
@@ -179,7 +190,14 @@ def collector_data(config, log, collector_id, show_writer, limit, count, delay):
     metavar="<id1 | pattern1, id2 | pattern2, ...>",
     required=False,
 )
-def collector_test(config, log, collector_ids):
+@click.option(
+    "--force",
+    "force",
+    is_flag=True,
+    required=False,
+    help="Collect data regardless of the collector's status",
+)
+def collector_test(config, log, collector_ids, force):
     """
     Test one or more collectors. The collectors are run in parallel and the results are displayed in a table.
     """
@@ -214,12 +232,6 @@ def collector_test(config, log, collector_ids):
         else:
             return "--"
 
-    def _format_size(d, v, e):
-        size = 0
-        if e.data is not None:
-            size = sys.getsizeof(e.data) / 1024
-        return "%.2f" % size
-
     def _format_result(d, v, e):
         if v is not None:
             return v[:100]
@@ -247,7 +259,14 @@ def collector_test(config, log, collector_ids):
 
     yamc_config.TEST_MODE = True
     struct = lambda x: Map(
-        collector=x, id=x.component_id, start_time=None, end_time=None, data=None, result=None, status="WAITING"
+        collector=x,
+        id=x.component_id,
+        start_time=None,
+        end_time=None,
+        data=None,
+        result=None,
+        status="WAITING" if x.enabled and not force else "DISABLED",
+        enabled=x.enabled,
     )
     data = []
     if collector_ids is not None:
@@ -266,7 +285,6 @@ def collector_test(config, log, collector_ids):
         {"name": "STATUS", "value": "{status}", "help": "Data retrieval status"},
         {"name": "TIME [s]", "value": "{d}", "format": _format_duration, "help": "Running duration"},
         {"name": "RECORDS", "value": "{data}", "format": _format_records, "help": "Number of records retrieved"},
-        {"name": "SIZE [KiB]", "value": "{x}", "format": _format_size, "help": "Size of data"},
         {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
     ]
 
@@ -276,8 +294,9 @@ def collector_test(config, log, collector_ids):
     try:
         threads = []
         for item in data:
-            threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
-            threads[-1].start()
+            if item.enabled or force:
+                threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
+                threads[-1].start()
         Table(table_def, None, False).display_cont(data, term_func=lambda: not all([not t.is_alive() for t in threads]))
     finally:
         if sys.stdout.isatty():

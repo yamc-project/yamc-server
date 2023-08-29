@@ -299,9 +299,7 @@ class Config:
             for component_id, component_config in self.config.value(name).items():
                 try:
                     clazz = import_class(component_config["class"])
-                    component = clazz(self, component_id)
-                    if component.enabled:
-                        components[component_id] = component
+                    components[component_id] = clazz(self, component_id)
                 except Exception as e:
                     raise Exception("Cannot load component '%s'. %s" % (component_id, str(e)))
             return components
