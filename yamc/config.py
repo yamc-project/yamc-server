@@ -35,13 +35,21 @@ ENV = {}
 
 DEBUG = str2bool(os.getenv("YAMC_DEBUG", "False"))
 ANSI_COLORS = not str2bool(os.getenv("YAMC_NO_ANSI", "False"))
+TRACEBACK = str2bool(os.getenv("YAMC_TRACEBACK", "False"))
 CONFIG_FILE = os.getenv("YAMC_CONFIG", None)
 CONFIG_ENV = os.getenv("YAMC_ENV", None)
-TRACEBACK = os.getenv("YAMC_TRACEBACK", None)
 YAMC_HOME = os.getenv("YAMC_HOME", "~/.yamc")
 YAMC_PERFDIR = os.getenv("YAMC_PERFDIR", f"{YAMC_HOME}/data/perf")
 
-env_variables = ["YAMC_HOME", "YAMC_CONFIG", "YAMC_ENV", "YAMC_PERFDIR", "YAMC_DEBUG", "YAMC_TRACEBACK", "YAMC_NO_ANSI"]
+env_variables = {
+    "YAMC_HOME": YAMC_HOME,
+    "YAMC_CONFIG": CONFIG_FILE,
+    "YAMC_ENV": CONFIG_ENV,
+    "YAMC_PERFDIR": YAMC_PERFDIR,
+    "YAMC_DEBUG": DEBUG,
+    "YAMC_TRACEBACK": TRACEBACK,
+    "YAMC_NO_ANSI": not ANSI_COLORS,
+}
 
 TEST_MODE = False
 
@@ -225,6 +233,9 @@ def init_env(env_file, sep="=", comment="#"):
                     env[key] = value
     for k, v in os.environ.items():
         env[k] = v
+    for k, v in env_variables.items():
+        if v is not None:
+            env[k] = v
     return env
 
 
