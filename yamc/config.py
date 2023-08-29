@@ -495,6 +495,10 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
+traceback_manager = logging.Manager(logging.RootLogger(logging.INFO))
+traceback_handler = None
+
+
 def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "console"]):
     """
     Initialize the logging, set the log level and logging directory.
@@ -505,38 +509,49 @@ def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "co
     log_handlers = handlers
 
     # main logs configuration
-    logging.config.dictConfig(
-        {
-            "version": 1,
-            "disable_existing_loggers": True,
-            "formatters": {
-                "standard": {"format": CustomFormatter.format_header + CustomFormatter.format_msg},
-                "colored": {"()": CustomFormatter},
+    logging_dict = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "standard": {"format": CustomFormatter.format_header + CustomFormatter.format_msg},
+            "colored": {"()": CustomFormatter},
+        },
+        "handlers": {
+            "console": {
+                "formatter": "colored" if ANSI_COLORS else "standard",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",  # Default is stderr
             },
-            "handlers": {
-                "console": {
-                    "formatter": "colored" if ANSI_COLORS else "standard",
-                    "class": "logging.StreamHandler",
-                    "stream": "ext://sys.stdout",  # Default is stderr
-                },
-                "file": {
-                    "formatter": "standard",
-                    "class": "logging.handlers.TimedRotatingFileHandler",
-                    "filename": f"{logs_dir}/yamc-{command_name}.log",
-                    "when": "midnight",
-                    "interval": 1,
-                    "backupCount": 30,
-                },
+            "file": {
+                "formatter": "standard",
+                "class": "logging.handlers.TimedRotatingFileHandler",
+                "filename": f"{logs_dir}/yamc-{command_name}.log",
+                "when": "midnight",
+                "interval": 1,
+                "backupCount": 30,
             },
-            "loggers": {
-                "": {  # all loggers
-                    "handlers": log_handlers,
-                    "level": f"{log_level}",
-                    "propagate": False,
-                }
-            },
-        }
-    )
+        },
+        "loggers": {
+            "": {  # all loggers
+                "handlers": log_handlers,
+                "level": f"{log_level}",
+                "propagate": False,
+            }
+        },
+    }
+
+    logging.config.dictConfig(logging_dict)
+
+    if yamc_config.TRACEBACK:
+        global traceback_handler
+        traceback_handler = logging.handlers.TimedRotatingFileHandler(
+            f"{logs_dir}/yamc-{command_name}-traceback.log",
+            when=logging_dict["handlers"]["file"]["when"],
+            interval=logging_dict["handlers"]["file"]["interval"],
+            backupCount=logging_dict["handlers"]["file"]["backupCount"],
+        )
+        formatter = logging.Formatter(logging_dict["formatters"]["standard"]["format"])
+        traceback_handler.setFormatter(formatter)
 
 
 def get_logger(name):
@@ -547,6 +562,9 @@ def get_logger(name):
     class LoggingProxy:
         def __init__(self, name):
             self.log = logging.getLogger(name)
+            if yamc_config.TRACEBACK:
+                self.traceback = traceback_manager.getLogger(name)
+                self.traceback.addHandler(traceback_handler)
 
         def info(self, msg, *args, **kwargs):
             self.log.info(msg, *args, **kwargs)
@@ -558,8 +576,10 @@ def get_logger(name):
             self.log.warn(msg, *args, **kwargs)
 
         def error(self, msg, *args, **kwargs):
-            kwargs["exc_info"] = yamc_config.TRACEBACK
             self.log.error(msg, *args, **kwargs)
+            if yamc_config.TRACEBACK:
+                kwargs["exc_info"] = True
+                self.traceback.error(msg, *args, **kwargs)
 
         def exception(self, msg, *args, exc_info=True, **kwargs):
             self.log.exception(msg, *args, exc_info=exc_info, **kwargs)
