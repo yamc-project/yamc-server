@@ -265,8 +265,11 @@ def provider_perf(config, log, provider_ids, perf_dir, offset):
 
     # get of all csv files
     csv_files = [os.path.join(perf_dir, filename) for filename in os.listdir(perf_dir)]
-    modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
     log.info(f"There are {len(csv_files)} files in the directory.")
+    if len(csv_files) == 0:
+        print("No performance data found.")
+        return
+    modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
 
     # retrieve data
     data = get_perf_data(csv_files, modified_time, offset, provider_ids, log)
