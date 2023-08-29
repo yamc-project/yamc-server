@@ -32,8 +32,8 @@ def config_get(config, log, path):
 
 @click.command("env", help="Show environment variables.", cls=BaseCommand, log_handlers=["file"])
 def config_env():
-    for e in yamc_config.env_variables:
-        print(f"{e}={os.environ.get(e, '<not-set>')}")
+    for e, v in yamc_config.env_variables.items():
+        print(f"{e}={v if v is not None else '<not-set>'}")
 
 
 config.add_command(config_get)
