@@ -23,6 +23,7 @@ class BaseCollector(WorkerComponent):
         super().__init__(config, component_id)
         self.config = config.collector(component_id)
         self.enabled = self.config.value_bool("enabled", default=True)
+        self.last_collection_time = None
         self.writers = {}
 
         # read writer configurations for this this collector
@@ -40,7 +41,7 @@ class BaseCollector(WorkerComponent):
                 self.writers[w.component_id]["__writer"] = w
 
         if not self.enabled:
-            self.log.debug(f"The collector {component_id} is disabled")
+            self.log.info(f"The collector {component_id} is disabled")
 
         self.data_def = self.config.value("data", required=False, no_eval=True)
         if self.data_def is None:
@@ -52,6 +53,7 @@ class BaseCollector(WorkerComponent):
 
     def prepare_data(self, scope=None):
         _data, data = [], None
+        self.last_collection_time = time.time()
         if isinstance(self.data_def, dict):
             data = deep_eval(
                 Map(self.data_def),
@@ -84,7 +86,9 @@ class BaseCollector(WorkerComponent):
             self.log.debug("There is no data to write.")
             return
         _scope = Map() if scope is None else scope
-        _scope["collection"] = Map(time=time.time())
+        _scope["collection"] = Map(
+            time=self.last_collection_time if self.last_collection_time is not None else time.time()
+        )
         for w in self.writers.values():
             if w["__writer"] is not None:
                 writer_def = Map({k: v for k, v in w.items() if k != "__writer"})
