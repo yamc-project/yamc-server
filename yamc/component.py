@@ -128,7 +128,7 @@ class WorkerComponent(BaseComponent):
             self.thread = threading.Thread(target=self.worker, args=(exit_event,), daemon=True)
             self.thread.start()
         else:
-            self.log.ingo(f"The worker thread will not be start as the component is disabled.")
+            self.log.info(f"The worker thread {self.component_id} will not be started as the component is disabled.")
 
     def running(self):
         """
