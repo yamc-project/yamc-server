@@ -15,7 +15,7 @@ from yamc.providers import BaseProvider, EventProvider, PerformanceProvider
 from yamc.utils import Map
 from datetime import timedelta
 
-from .click_ext import BaseCommandConfig
+from .click_ext import BaseCommandConfig, TableCommand
 
 PERF_CSV_COLUMNS_DEF = {
     "Time": str,
@@ -100,6 +100,34 @@ def find_provider(config, provider_id, raise_exception=True):
     if raise_exception and collector is None:
         raise Exception(f"Provider with ID '{provider_id}' not found.")
     return collector
+
+
+PROVIDER_PERF_TABLE = [
+    {"name": "PROVIDER", "value": "{provider}", "help": "Provider Id."},
+    {
+        "name": "ID",
+        "value": "{id}",
+        "format": format_id,
+        "help": "Data Id used by the collector when calling the provider.",
+    },
+    {"name": "RUNS", "value": "{runs}", "help": "Number of totoal runs."},
+    {
+        "name": "WAITS",
+        "value": "{waits}",
+        "help": "Number of waitings due to an error or a higher respone time.",
+    },
+    {"name": "ERRS", "value": "{errors}", "help": "Number of error runs."},
+    {"name": "S_RATE", "value": "{rate}", "format": format_float, "help": "Number of succesful runs."},
+    {"name": "T_AVG [s]", "value": "{duration_mean}", "format": format_float, "help": "Mean time of successful runs."},
+    {
+        "name": "T_MAX [s]",
+        "value": "{duration_max}",
+        "format": format_float,
+        "help": "Maximum time of successful runs.",
+    },
+    {"name": "RECORDS", "value": "{records}", "help": "Number of records the provider retrieved."},
+    {"name": "LAST_ERROR", "value": "{error}", "help": "The last error message the provider returned."},
+]
 
 
 def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
@@ -228,7 +256,14 @@ def provider_config(config, log, provider_id):
     print(json.dumps(provider.config._config, indent=4, sort_keys=True, default=str))
 
 
-@click.command("perf", help="Show providers' performance.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command(
+    "perf",
+    help="Show providers' performance.",
+    cls=TableCommand,
+    log_handlers=["file"],
+    table_def=PROVIDER_PERF_TABLE,
+    watch_opts=["option"],
+)
 @click.argument(
     "provider_ids",
     metavar="<id1 | pattern1, id2 | pattern2, ...>",
@@ -255,41 +290,38 @@ def provider_perf(config, log, provider_ids, perf_dir, offset):
     """
     Show providers' performance.
     """
-
     if perf_dir is None:
         perf_dir = yamc_config.YAMC_PERFDIR
     log.info(f"Using {perf_dir} to search performance csv files.")
 
     providers = config.search(BaseProvider, provider_ids)
     provider_ids = [x.component_id for x in providers]
-    log.info(f"Will use the following providers to analyze performance: {provider_ids}")
+    log.info(f"Will use the following providers to analyze the performance: {provider_ids}")
 
-    # get of all csv files
-    csv_files = [os.path.join(perf_dir, filename) for filename in os.listdir(perf_dir)]
-    log.info(f"There are {len(csv_files)} csv files in the directory.")
-    if len(csv_files) == 0 or len(provider_ids) == 0:
-        log.info(f"No performance data found.")
-        print("No performance data found.")
-        return
-    modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
+    data = None
+    modified_time = None
 
-    # retrieve data
-    data = get_perf_data(csv_files, modified_time, offset, provider_ids, log)
-    log.info(f"The performance data is {data}")
+    def get_data():
+        nonlocal data, modified_time
 
-    table_def = [
-        {"name": "PROVIDER", "value": "{provider}", "help": "Provider ID"},
-        {"name": "ID", "value": "{id}", "format": format_id, "help": "Data ID"},
-        {"name": "RUNS", "value": "{runs}", "help": "Number of runs"},
-        {"name": "WAITS", "value": "{waits}", "help": "Number of waitings"},
-        {"name": "ERRS", "value": "{errors}", "help": "Number of errors"},
-        {"name": "S_RATE", "value": "{rate}", "format": format_float, "help": "Number of successes"},
-        {"name": "T_AVG [s]", "value": "{duration_mean}", "format": format_float, "help": "Duration mean value"},
-        {"name": "T_MAX [s]", "value": "{duration_max}", "format": format_float, "help": "Duration mean value"},
-        {"name": "RECORDS", "value": "{records}", "help": "Number of records"},
-        {"name": "LAST_ERROR", "value": "{error}", "help": "Last error message"},
-    ]
-    Table(table_def, None, False).display(data)
+        csv_files = [
+            os.path.join(perf_dir, filename)
+            for filename in os.listdir(perf_dir)
+            if re.match(r"^(.*\.csv)(\.[0-9\-\.]*)?$", filename)
+        ]
+        if len(csv_files) == 0 or len(provider_ids) == 0:
+            raise Exception(f"No performance data found.")
+
+        _modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
+        if _modified_time != modified_time:
+            log.info(f"There are {len(csv_files)} csv files in the directory.")
+            _data = get_perf_data(csv_files, _modified_time, offset, provider_ids, log)
+            log.debug(f"The performance data is {_data}")
+            modified_time = _modified_time
+            data = _data
+        return data
+
+    return get_data
 
 
 command_provider.add_command(provider_list)

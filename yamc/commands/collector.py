@@ -14,7 +14,7 @@ from yamc.json2table import Table
 from yamc.providers import OperationalError
 
 
-from .click_ext import BaseCommandConfig
+from .click_ext import BaseCommandConfig, TableCommand
 
 import click
 import json
@@ -34,6 +34,43 @@ def find_collector(config, collector_id, raise_exception=True):
     if raise_exception and collector is None:
         raise Exception(f"Collector with ID {collector_id} not found!")
     return collector
+
+
+def _format_duration(d, v, e):
+    if e.status == "RUNNING" and e.end_time is None:
+        duration = time.time() - e.start_time
+    elif e.status in ["DONE", "ERROR"]:
+        duration = e.end_time - e.start_time
+    else:
+        return "--"
+    return f"{duration:.2f}"
+
+
+def _format_records(d, v, e):
+    if e.status == "DONE":
+        return len(v)
+    else:
+        return "--"
+
+
+def _format_result(d, v, e):
+    if v is not None:
+        return v[:100]
+    else:
+        return "--"
+
+
+def _format_id(d, v, e):
+    return v[:25]
+
+
+COLLECTOR_TEST_TABLE = [
+    {"name": "COLLECTOR", "value": "{id}", "format": _format_id, "help": "Collector ID"},
+    {"name": "STATUS", "value": "{status}", "help": "Data retrieval status"},
+    {"name": "TIME [s]", "value": "{d}", "format": _format_duration, "help": "Running duration"},
+    {"name": "RECORDS", "value": "{data}", "format": _format_records, "help": "Number of records retrieved"},
+    {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
+]
 
 
 @click.group("collector", help="Collector commands.")
@@ -184,7 +221,14 @@ def collector_data(config, log, collector_id, show_writer, limit, count, delay, 
             print("++")
 
 
-@click.command("test", help="Test one or more collectors.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command(
+    "test",
+    help="Test one or more collectors.",
+    cls=TableCommand,
+    log_handlers=["file"],
+    table_def=COLLECTOR_TEST_TABLE,
+    watch_opts=["always"],
+)
 @click.argument(
     "collector_ids",
     metavar="<id1 | pattern1, id2 | pattern2, ...>",
@@ -217,46 +261,6 @@ def collector_test(config, log, collector_ids, force):
                 item.result = str(e)
         item.end_time = time.time()
 
-    def _format_duration(d, v, e):
-        if e.status == "RUNNING" and e.end_time is None:
-            duration = time.time() - e.start_time
-        elif e.status in ["DONE", "ERROR"]:
-            duration = e.end_time - e.start_time
-        else:
-            return "--"
-        return f"{duration:.2f}"
-
-    def _format_records(d, v, e):
-        if e.status == "DONE":
-            return len(v)
-        else:
-            return "--"
-
-    def _format_result(d, v, e):
-        if v is not None:
-            return v[:100]
-        else:
-            return "--"
-
-    def _format_id(d, v, e):
-        return v[:25]
-
-    def _kill():
-        if sys.stdout.isatty():
-            bb = "\b\b"
-        else:
-            bb = ""
-        sys.stdout.write(f"{bb}The command was interrupted.\n")
-        sys.stdout.write(f"{bb}")
-        if sys.stdout.isatty():
-            sys.stdout.write("\033[?25h")
-        sys.stdout.flush()
-        exit(0)
-
-    # kill the process when ctrl+c is pressed
-    # since there are threads that wait on i/o this is the only way to kill the process
-    signal.signal(signal.SIGINT, lambda sig, frame: _kill())
-
     yamc_config.TEST_MODE = True
     struct = lambda x: Map(
         collector=x,
@@ -280,29 +284,13 @@ def collector_test(config, log, collector_ids, force):
     else:
         data = [struct(x) for x in config.scope.all_components if isinstance(x, BaseCollector)]
 
-    table_def = [
-        {"name": "COLLECTOR", "value": "{id}", "format": _format_id, "help": "Collector ID"},
-        {"name": "STATUS", "value": "{status}", "help": "Data retrieval status"},
-        {"name": "TIME [s]", "value": "{d}", "format": _format_duration, "help": "Running duration"},
-        {"name": "RECORDS", "value": "{data}", "format": _format_records, "help": "Number of records retrieved"},
-        {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
-    ]
+    threads = []
+    for item in data:
+        if item.enabled or force:
+            threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
+            threads[-1].start()
 
-    if sys.stdout.isatty():
-        # hide the cursor
-        sys.stdout.write("\033[?25l")
-    try:
-        threads = []
-        for item in data:
-            if item.enabled or force:
-                threads.append(threading.Thread(target=_run_collector, args=(item,), daemon=True))
-                threads[-1].start()
-        Table(table_def, None, False).display_cont(data, term_func=lambda: not all([not t.is_alive() for t in threads]))
-    finally:
-        if sys.stdout.isatty():
-            # show the cursor
-            sys.stdout.write("\033[?25h")
-            sys.stdout.flush()
+    return lambda: data if not all([not t.is_alive() for t in threads]) else None
 
 
 command_collector.add_command(collector_list)

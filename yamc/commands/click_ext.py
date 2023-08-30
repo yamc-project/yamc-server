@@ -18,6 +18,8 @@ import yamc.config as yamc_config
 from yamc import __version__ as version
 from yamc.config import Config, init_logging
 from yamc.utils import format_str_color, bcolors
+from yamc.json2table import Table
+
 
 from click import Option
 
@@ -139,4 +141,51 @@ class BaseCommandConfig(BaseCommand):
 
     def invoke(self, ctx):
         self.command_run(ctx)
-        super().invoke(ctx)
+        return super().invoke(ctx)
+
+
+class TableCommand(BaseCommandConfig):
+    def __init__(self, *args, **kwargs):
+        self.table = Table(kwargs.pop("table_def", None), None, False)
+        self.watch_opts = kwargs.pop("watch_opts", None)
+        super().__init__(*args, **kwargs)
+        self.params.insert(
+            0,
+            Option(
+                ("-d", "--describe"),
+                help="Describe the table columns",
+                is_flag=True,
+            ),
+        )
+        if "option" in self.watch_opts:
+            self.params.insert(
+                0,
+                Option(
+                    ("-w", "--watch"),
+                    help="Watch the data for changes and update the table.",
+                    is_flag=True,
+                ),
+            )
+
+        self.describe = False
+        self.watch = False
+
+    def invoke(self, ctx):
+        self.describe = ctx.params.pop("describe")
+        self.watch = "always" in self.watch_opts or ctx.params.pop("watch", False)
+        if self.describe:
+            self.table.describe()
+        else:
+            data = super().invoke(ctx)
+            if isinstance(data, list):
+                if not self.watch:
+                    self.table.display(data)
+                else:
+                    self.table.watch(lambda: data)
+            elif callable(data):
+                if self.watch:
+                    self.table.watch(data)
+                else:
+                    self.table.display(data())
+            else:
+                raise Exception("The data must be either a list or a callable object!")

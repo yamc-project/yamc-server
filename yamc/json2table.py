@@ -7,8 +7,10 @@ import os
 import collections
 import json
 import time
+import signal
 
 from .utils import PathDef, remove_ansi_escape
+from io import StringIO
 
 
 class Table:
@@ -197,20 +199,68 @@ class Table:
             print(json.dumps(data, indent=4, sort_keys=True, default=str))
         return len(lines)
 
-    def display_cont(self, data, term_func, refresh_interval=1):
-        done = False
+    def watch(self, data_func, refresh_interval=1, hide_cursor=True):
+        """
+        Displays the data returned by the data_func function in a loop with the refresh_interval interval.
+        The data_func function must return a list of dicts. The dicts must have keys that correspond to the
+        names of the columns in the table_def. The function can return None to indicate that there is no data
+        to display in which case the function ends.
+        """
+
+        def _kill():
+            if sys.stdout.isatty():
+                bb = "\b\b"
+            else:
+                bb = ""
+            sys.stdout.write(f"{bb}The process was interrupted.\n")
+            sys.stdout.write(f"{bb}")
+            if sys.stdout.isatty():
+                sys.stdout.write("\033[?25h")
+            sys.stdout.flush()
+            exit(0)
+
+        # kill the process when ctrl+c is pressed
+        # since there may be threads that wait on i/o this is the only way to kill the process
+        signal.signal(signal.SIGINT, lambda sig, frame: _kill())
+        if hide_cursor and sys.stdout.isatty():
+            sys.stdout.write("\033[?25l")
         try:
-            while not done:
-                self.display(data)
-                time.sleep(refresh_interval)
-                if sys.stdout.isatty():
-                    print("".join(["\033[A" for i in range(len(data) + 2)]))
+            data = None
+            extra_lines = 0
+            while True:
+                original_stdout = sys.stdout
+                capture_stream = StringIO()
+                sys.stdout = capture_stream
+                try:
+                    _data = data_func()
+                    _lines = capture_stream.getvalue()
+                    extra_lines = len(_lines.split("\n")) - 1 if _lines != "" else 0
+                finally:
+                    sys.stdout = original_stdout
+
+                if data is not None:
+                    if sys.stdout.isatty():
+                        print("".join(["\033[A" for i in range(len(data) + 2 + extra_lines)]))
+                    else:
+                        print("---")
+
+                if _data is not None:
+                    if _lines != "":
+                        sys.stdout.write(_lines)
+                    self.display(_data)
+                    time.sleep(refresh_interval)
+                    data = _data
                 else:
-                    print("---")
-                done = not term_func()
-            self.display(data)
+                    break
+            if data is not None:
+                self.display(data)
         except KeyboardInterrupt:
-            return False
+            pass
+        finally:
+            if hide_cursor and sys.stdout.isatty():
+                sys.stdout.write("\033[?25h")
+                sys.stdout.flush()
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     def describe(self, noterm=False):
         mlen = 0
