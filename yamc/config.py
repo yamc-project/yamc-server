@@ -561,13 +561,24 @@ def get_logger(name):
 
     class LoggingProxy:
         def __init__(self, name):
+            """
+            Initialize the logger proxy. When the `yamc_config.TRACEBACK` global flag is set to `True`,
+            the traceback logger is also initialized.
+            """
             self.log = logging.getLogger(name)
             if yamc_config.TRACEBACK:
                 self.traceback = traceback_manager.getLogger(name)
                 self.traceback.addHandler(traceback_handler)
 
         def info(self, msg, *args, **kwargs):
+            """
+            Log 'msg % args' with severity 'INFO'. This method allows to use `console` option to print the message
+            to the console along with the log file.
+            """
+            outstd = kwargs.pop("console", False)
             self.log.info(msg, *args, **kwargs)
+            if outstd:
+                print(msg)
 
         def warning(self, msg, *args, **kwargs):
             self.log.warning(msg, *args, **kwargs)
@@ -576,6 +587,10 @@ def get_logger(name):
             self.log.warn(msg, *args, **kwargs)
 
         def error(self, msg, *args, **kwargs):
+            """
+            Log 'msg % args' with severity 'ERROR'. This method uses `yamc_config.TRACEBACK` global flag
+            to print the traceback using the traceback logger.
+            """
             self.log.error(msg, *args, **kwargs)
             if yamc_config.TRACEBACK:
                 kwargs["exc_info"] = True
