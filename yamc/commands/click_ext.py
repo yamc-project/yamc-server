@@ -147,7 +147,7 @@ class BaseCommandConfig(BaseCommand):
 class TableCommand(BaseCommandConfig):
     def __init__(self, *args, **kwargs):
         self.table = Table(kwargs.pop("table_def", None), None, False)
-        self.watch_opts = kwargs.pop("watch_opts", None)
+        self.watch_opts = kwargs.pop("watch_opts", [])
         super().__init__(*args, **kwargs)
         self.params.insert(
             0,

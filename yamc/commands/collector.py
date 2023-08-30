@@ -72,6 +72,14 @@ COLLECTOR_TEST_TABLE = [
     {"name": "RESULT", "value": "{result}", "format": _format_result, "help": "Result message"},
 ]
 
+COLLECTOR_LIST_TABLE = [
+    {"name": "COLLECTOR", "value": "{collector}", "help": "Collector ID"},
+    {"name": "CLASS", "value": "{clazz}", "help": "Collector class"},
+    {"name": "STATUS", "value": "{status}", "help": "Collector status"},
+    {"name": "SCHEDULE", "value": "{schedule}", "help": "Cron schedule"},
+    {"name": "WRITERS", "value": "{writers}", "help": "List of collector's writers"},
+]
+
 
 @click.group("collector", help="Collector commands.")
 def command_collector():
@@ -81,7 +89,9 @@ def command_collector():
     pass
 
 
-@click.command("list", help="List all collectors.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command(
+    "list", help="List all collectors.", cls=TableCommand, table_def=COLLECTOR_LIST_TABLE, log_handlers=["file"]
+)
 def collector_list(config, log):
     """
     List all collectors.
@@ -98,15 +108,7 @@ def collector_list(config, log):
                     writers=",".join([w["__writer"].component_id for w in component.writers.values()]),
                 )
             )
-
-    table_def = [
-        {"name": "COLLECTOR", "value": "{collector}", "help": "Collector ID"},
-        {"name": "CLASS", "value": "{clazz}", "help": "Collector class"},
-        {"name": "STATUS", "value": "{status}", "help": "Collector status"},
-        {"name": "SCHEDULE", "value": "{schedule}", "help": "Collector ID"},
-        {"name": "WRITERS", "value": "{writers}", "help": "List of collector writers"},
-    ]
-    Table(table_def, None, False).display(data)
+    return data
 
 
 @click.command("config", help="Get a collector configuration.", cls=BaseCommandConfig, log_handlers=["file"])

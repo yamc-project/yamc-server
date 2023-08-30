@@ -129,6 +129,14 @@ PROVIDER_PERF_TABLE = [
     {"name": "LAST_ERROR", "value": "{error}", "help": "The last error message the provider returned."},
 ]
 
+PROVIDER_LIST_TABLE = [
+    {"name": "PROVIDER", "value": "{provider}", "help": "Provider Id."},
+    {"name": "CLASS", "value": "{clazz}", "help": "Provider class"},
+    {"name": "PERF", "value": "{perf}", "help": "The provider is performance-enabled."},
+    {"name": "EVENT", "value": "{event}", "help": "The provider is event-based."},
+    {"name": "SOURCE", "value": "{source}", "help": "The source of the provider."},
+]
+
 
 def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
     """
@@ -214,7 +222,9 @@ def command_provider():
     pass
 
 
-@click.command("list", help="List all providers.", cls=BaseCommandConfig, log_handlers=["file"])
+@click.command(
+    "list", help="List all providers.", cls=TableCommand, table_def=PROVIDER_LIST_TABLE, log_handlers=["file"]
+)
 def provider_list(config, log):
     """
     List all providers.
@@ -231,15 +241,7 @@ def provider_list(config, log):
                     source=component.source,
                 )
             )
-
-    table_def = [
-        {"name": "PROVIDER", "value": "{provider}", "help": "Collector ID"},
-        {"name": "CLASS", "value": "{clazz}", "help": "Collector class"},
-        {"name": "PERF", "value": "{perf}", "help": "Performance-enabled"},
-        {"name": "EVENT", "value": "{event}", "help": "Event-based"},
-        {"name": "SOURCE", "value": "{source}", "help": "Provider source"},
-    ]
-    Table(table_def, None, False).display(data)
+    return data
 
 
 @click.command("config", help="Get a provider configuration.", cls=BaseCommandConfig, log_handlers=["file"])
@@ -314,9 +316,10 @@ def provider_perf(config, log, provider_ids, perf_dir, offset):
 
         _modified_time = max(os.path.getmtime(csv_file) for csv_file in csv_files)
         if _modified_time != modified_time:
-            log.info(f"There are {len(csv_files)} csv files in the directory.")
+            log.info(f"Retrieving performance stats from the csv files.")
+            log.debug(f"There are {len(csv_files)} csv files in the directory.")
             _data = get_perf_data(csv_files, _modified_time, offset, provider_ids, log)
-            log.debug(f"The performance data is {_data}")
+            log.debug(f"The performance stats is {_data}")
             modified_time = _modified_time
             data = _data
         return data
