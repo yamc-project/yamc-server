@@ -52,7 +52,9 @@ class Topic:
 class EventSource:
     """
     Event source object provides a link between a specific pub/sub mechanism
-    (such as MQTT) and yamc providers.
+    (such as MQTT) and yamc providers. When a provider implements this interface,
+    than it can be used as a source of events to which event-based collector `EventCollector`
+    can subscribe.
     """
 
     def __init__(self):
