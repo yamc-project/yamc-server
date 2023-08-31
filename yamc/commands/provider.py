@@ -71,14 +71,14 @@ def find_provider(config, provider_id, raise_exception=True):
     """
     Find a provider by its ID.
     """
-    collector = None
+    provider = None
     for component in config.scope.all_components:
         if isinstance(component, BaseProvider) and component.component_id == provider_id:
-            collector = component
+            provider = component
             break
-    if raise_exception and collector is None:
+    if raise_exception and provider is None:
         raise Exception(f"Provider with ID '{provider_id}' not found.")
-    return collector
+    return provider
 
 
 PROVIDER_PERF_TABLE = [
