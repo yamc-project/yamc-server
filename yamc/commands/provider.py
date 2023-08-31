@@ -285,7 +285,7 @@ def provider_config(config, log, provider_id):
     metavar="<offset>",
     callback=validate_offset,
     default="1h",
-    help="The time offset from the last time (e.g., 2h, 30m, 3d)",
+    help="The time offset from the max time (e.g., 2h, 30m, 3d)",
 )
 def provider_perf(config, log, provider_ids, perf_dir, offset):
     """
