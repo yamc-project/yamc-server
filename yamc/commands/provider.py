@@ -17,18 +17,6 @@ from datetime import timedelta
 
 from .click_ext import BaseCommandConfig, TableCommand
 
-PERF_CSV_COLUMNS_DEF = {
-    "Time": str,
-    "Provider": None,
-    "Id": str,
-    "Duration": float,
-    "Records": int,
-    "WaitingCycles": int,
-    "Error": None,
-    "ReasonToWait": int,
-    "ErrorMessage": str,
-}
-
 
 def validate_offset(ctx, param, value):
     """
@@ -59,15 +47,6 @@ def parse_list(ctx, param, value):
         return [x.strip() for x in value.split(",")]
     else:
         return value
-
-
-def str_bool(v):
-    return str(v)
-
-
-def last_error(x):
-    error_messages = x[x != "-"]
-    return error_messages.iloc[-1] if len(error_messages) > 0 else None
 
 
 def format_id(d, v, e):
@@ -142,6 +121,26 @@ def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
     """
     Get performance data from csv files. The data is filtered by the offset and provider IDs.
     """
+
+    def __str_bool(v):
+        return str(v)
+
+    def __last_error(x):
+        error_messages = x[x != "-"]
+        return error_messages.iloc[-1] if len(error_messages) > 0 else None
+
+    PERF_CSV_COLUMNS_DEF = {
+        "Time": str,
+        "Provider": None,
+        "Id": str,
+        "Duration": float,
+        "Records": int,
+        "WaitingCycles": int,
+        "Error": None,
+        "ReasonToWait": int,
+        "ErrorMessage": str,
+    }
+
     # time information
     offset_s = offset_seconds(offset)
     latest_modified_time = pd.Timestamp.fromtimestamp(modified_time)
@@ -161,7 +160,7 @@ def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
                 escapechar="\\",
                 names=[x for x in PERF_CSV_COLUMNS_DEF.keys()],
                 dtype={k: v for k, v in PERF_CSV_COLUMNS_DEF.items() if v is not None},
-                converters={1: lambda v: v.split("/")[-1], 6: lambda v: str_bool(v)},
+                converters={1: lambda v: v.split("/")[-1], 6: lambda v: __str_bool(v)},
             )
             df["Time"] = pd.to_datetime(df["Time"])
             df = df[df["Provider"].isin(provider_ids)]
@@ -190,7 +189,7 @@ def get_perf_data(csv_files, modified_time, offset, provider_ids, log):
             lambda x: (x == "None").sum(),
         ],
         "Records": ["sum"],
-        "ErrorMessage": [last_error],
+        "ErrorMessage": [__last_error],
     }
 
     result = df.groupby(["Provider", "Id"]).agg(agg_funcs).reset_index()
