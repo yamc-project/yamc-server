@@ -3,17 +3,21 @@
 
 import re
 import sys
+import os
 import time
 import inspect
 import hashlib
+import logging
 
 from yamc.utils import Map
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .provider import BaseProvider, OperationalError
 from .event import EventSource
 
 import yamc.config as yamc_config
+
+import pandas as pd
 
 
 class PerformanceProvider(BaseProvider, EventSource):
@@ -209,3 +213,134 @@ def perf_checker(id_arg=None):
         return wrapper
 
     return decorator
+
+
+class PerformanceAnalyser:
+    """
+    Performance analysis class is used to analyze the performance of the providers using CSV files where
+    performance of the providers is stored. Such files can be produced using the events from the performance
+    provider.
+    """
+
+    def __init__(self, perf_dir):
+        self.perf_dir = perf_dir
+        self.last_modified = None
+        self.data = None
+        self.min_time = None
+        self.max_time = None
+        self.log = yamc_config.get_logger("perf_analyser")
+
+    def csv_files(self):
+        """
+        Returns the list of CSV files that contain the performance information for the given time range.
+        """
+        csv_files = [
+            os.path.join(self.perf_dir, filename)
+            for filename in os.listdir(self.perf_dir)
+            if re.match(r"^(.*\.csv)(\.[0-9\-\.]*)?$", filename)
+        ]
+        return csv_files
+
+    def get_perf_data(self, offset, provider_ids=None):
+        """
+        Get performance data from csv files. The data is filtered by the offset and provider IDs.
+        """
+
+        def __str_bool(v):
+            return str(v)
+
+        def __last_error(x):
+            error_messages = x[x != "-"]
+            return error_messages.iloc[-1] if len(error_messages) > 0 else None
+
+        PERF_CSV_COLUMNS_DEF = {
+            "STARTED_TIME": str,
+            "TOPIC_ID": lambda v: v.split("/")[-1],
+            "ID": str,
+            "RUNNING_TIME": float,
+            "RECORDS": int,
+            "WAIT_CYCLES": int,
+            "IS_ERROR": lambda v: __str_bool(v),
+            "REASON_TO_WAIT": int,
+            "ERROR": str,
+        }
+
+        csv_files = self.csv_files()
+        last_modified = max(os.path.getmtime(csv_file) for csv_file in csv_files)
+        if self.last_modified == last_modified and self.data is not None:
+            return self.min_time, self.max_time, self.data
+
+        self.last_modified = last_modified
+
+        # time information
+        modified_time = pd.Timestamp.fromtimestamp(self.last_modified)
+        reference_time = modified_time - timedelta(seconds=offset)
+        self.log.info(f"The latest modified time of the csv file is {modified_time}.")
+        self.log.info(f"Filtering csv files between {reference_time} and {modified_time}.")
+
+        # read csv files
+        dfs = []
+        for csv_file in csv_files:
+            last_modified_time = pd.Timestamp.fromtimestamp(os.path.getmtime(csv_file))
+            if last_modified_time >= reference_time:
+                df = pd.read_csv(
+                    csv_file,
+                    header=1,
+                    quotechar='"',
+                    escapechar="\\",
+                    names=[x for x in PERF_CSV_COLUMNS_DEF.keys()],
+                    dtype={k: v for k, v in PERF_CSV_COLUMNS_DEF.items() if not callable(v)},
+                    converters={k: v for k, v in PERF_CSV_COLUMNS_DEF.items() if callable(v)},
+                )
+                df["STARTED_TIME"] = pd.to_datetime(df["STARTED_TIME"])
+                if provider_ids is not None:
+                    df = df[df["TOPIC_ID"].isin(provider_ids)]
+                df.set_index("STARTED_TIME", inplace=True)
+                dfs.append(df)
+
+        self.log.info(f"Using {len(dfs)} csv files to load data.")
+        df = pd.concat(dfs, ignore_index=False)
+
+        # min and max time
+        max_time = df.index.max()
+        min_time = max_time - pd.Timedelta(seconds=offset)
+        if min_time < df.index.min():
+            min_time = df.index.min()
+        range_info = f"{min_time.strftime('%Y-%m-%d %H:%M:%S')}-{max_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        df = df[df.index >= min_time]
+        self.log.info(f"The final time range to calculate performance stats is {range_info}.")
+
+        # aggregate the data
+        agg_funcs = {
+            "RUNNING_TIME": ["mean", "max"],
+            "IS_ERROR": [
+                lambda x: (x == "True").sum(),
+                lambda x: (x == "False").sum(),
+                lambda x: (x == "None").sum(),
+            ],
+            "RECORDS": ["sum"],
+            "ERROR": [__last_error],
+        }
+
+        result = df.groupby(["TOPIC_ID", "ID"]).agg(agg_funcs).reset_index()
+
+        # rename columns and add more calculations
+        result.columns = [
+            "provider",
+            "id",
+            "duration_mean",
+            "duration_max",
+            "errors",
+            "success",
+            "waits",
+            "records",
+            "error",
+        ]
+        result["rate"] = result["success"] / (result["success"] + result["errors"])
+        result["runs"] = result["success"] + result["errors"] + result["waits"]
+
+        # convert to dict and display data
+        self.data = result.to_dict(orient="records")
+        self.min_time = min_time
+        self.max_time = max_time
+        return self.min_time, self.max_time, self.data
