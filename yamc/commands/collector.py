@@ -252,7 +252,7 @@ def collector_test(config, log, collector_ids, force):
         item.start_time = time.time()
         try:
             item.status = "RUNNING"
-            item.data = item.collector.prepare_data()
+            item.data = item.collector.test()
             item.status = "DONE"
             item.result = "OK"
         except Exception as e:

@@ -88,14 +88,14 @@ class PerformanceProvider(BaseProvider, EventSource):
             )
 
         perf_obj = self.perf_objects[_id]
-        self.log.info(f"Perf_info object: id_arg={id_arg}, perf_id={perf_obj.id}, hash={_id}")
+        self.log.debug(f"Perf_info object: id_arg={id_arg}, perf_id={perf_obj.id}, hash={_id}")
         return perf_obj
 
     def update_perf(self, perf_info):
         """
         Updates the performance information for the given performance object.
         """
-        self.log.info(f"Updating topic with perf_info object id: {perf_info.id}")
+        self.log.debug(f"Updating topic with perf_info object id: {perf_info.id}")
         self.perf_topic.update(
             Map(
                 id=str(perf_info.id),
