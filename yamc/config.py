@@ -34,6 +34,7 @@ ENVPARAM_PATTERN = "\$\{%s\}" % ENVNAME_PATTERN
 ENV = {}
 
 DEBUG = str2bool(os.getenv("YAMC_DEBUG", "False"))
+DEBUG_PARAMS = []
 ANSI_COLORS = not str2bool(os.getenv("YAMC_NO_ANSI", "False"))
 TRACEBACK = str2bool(os.getenv("YAMC_TRACEBACK", "False"))
 CONFIG_FILE = os.getenv("YAMC_CONFIG", None)
@@ -539,6 +540,9 @@ def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "co
             }
         },
     }
+
+    for p in DEBUG_PARAMS:
+        logging_dict["loggers"][p] = {"level": "DEBUG", "propagate": False, "handlers": log_handlers}
 
     logging.config.dictConfig(logging_dict)
 

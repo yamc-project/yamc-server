@@ -8,10 +8,13 @@ import sys
 import time
 import sys
 import signal
+import typing as t
 
 import click
 import traceback
 import logging
+
+from click.core import Command
 
 import yamc.config as yamc_config
 
@@ -20,8 +23,32 @@ from yamc.config import Config, init_logging
 from yamc.utils import format_str_color, bcolors
 from yamc.json2table import Table
 
-
+from typing import Any, Dict, Sequence
 from click import Option
+
+
+def token_normalize_func(param):
+    if ":" in param:
+        param = param.split(":")[0]
+    return param
+
+
+class FlagOptions(click.ParamType):
+    name = "flag_with_params"
+
+    def convert(self, value, param, ctx):
+        for opt in param.opts:
+            for v in sys.argv[1:]:
+                if v == opt:
+                    return (True, [])
+                if v.startswith(opt + ":"):
+                    pattern = rf"^{opt}:(\w+(?:,\w+)*)$"
+                    match = re.search(pattern, v)
+                    if match:
+                        parts = match.group(1).split(",")
+                        return (True, parts)
+                    self.fail(f"Invalid flag option {v}")
+        return (False, [])
 
 
 class CoreCommandGroup(click.core.Group):
@@ -36,7 +63,7 @@ class CoreCommandGroup(click.core.Group):
         """
         # retrieve the global options
         yamc_config.ANSI_COLORS = not ctx.params.pop("no_ansi", False)
-        yamc_config.DEBUG = ctx.params.pop("debug", False)
+        yamc_config.DEBUG, yamc_config.DEBUG_PARAMS = ctx.params.pop("debug", (False, []))
         yamc_config.TRACEBACK = ctx.params.pop("traceback", False)
 
         # pylint: disable=broad-except
@@ -88,7 +115,7 @@ class BaseCommand(click.core.Command):
         init_logging(
             logs_dir,
             filename_suffix,
-            log_level="DEBUG" if yamc_config.DEBUG else "INFO",
+            log_level="DEBUG" if yamc_config.DEBUG and len(yamc_config.DEBUG_PARAMS) == 0 else "INFO",
             handlers=self.log_handlers,
         )
 
