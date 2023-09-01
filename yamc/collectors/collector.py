@@ -7,6 +7,7 @@ import croniter
 import sys
 import copy
 import queue
+import random
 
 from datetime import datetime
 from yamc.component import WorkerComponent
@@ -95,6 +96,9 @@ class BaseCollector(WorkerComponent):
                 writer_def = Map({k: v for k, v in w.items() if k != "__writer"})
                 w["__writer"].write(self.component_id, data, writer_def, _scope, ignore_healthcheck=ignore_healthcheck)
 
+    def test(self):
+        return self.prepare_data()
+
 
 class CronCollector(BaseCollector):
     def __init__(self, config, component_id):
@@ -135,34 +139,40 @@ class EventCollector(BaseCollector):
     def __init__(self, config, component_id):
         super().__init__(config, component_id)
         self.queue = queue.Queue()
-        if not isinstance(self.data_def, PythonExpression):
-            raise Exception(f"The data must be of type {PythonExpression.__class__.__name__}")
+        self.source_def = self.config.value("source", required=True, no_eval=True)
+        if not isinstance(self.source_def, PythonExpression):
+            raise Exception(f"The source must be of type {PythonExpression.__class__.__name__}")
 
-        self.source = self.config.eval(self.data_def)
-        self.data_def = Map(__nod=0)
+        self.source = self.config.eval(self.source_def)
         if isinstance(self.source, list):
             for x in self.source:
                 if not isinstance(x, Topic):
-                    raise Exception(f"The data must be the list of types {Topic.__class__.__name__}")
+                    raise Exception(f"The source must be the list of types {Topic.__class__.__name__}")
         elif not isinstance(self.source, Topic):
-            raise Exception(f"The data must be of type {Topic.__class__.__name__}")
+            raise Exception(f"The source must be of type {Topic.__class__.__name__}")
+
+        # set the default data definition if not set
+        if not isinstance(self.data_def, PythonExpression) and self.data_def.get("__nod") is not None:
+            self.data_def = PythonExpression("event")
 
     def worker(self, exit_event):
         self.log.info("Starting the event collector thread.")
         self.log.info(
-            "Subscribing to events from the following event sources: %s"
-            % (", ".join([x.topic_id for x in self.source]))
+            "Subscribing to events from the following topics: %s" % (", ".join([x.topic_id for x in self.source]))
         )
         for s in self.source:
             s.subscribe(self.queue)
         while not exit_event.is_set():
             try:
-                data = self.queue.get(block=False)
-                self.last_collection_time = time.time()
-                self.log.info(f"Received event {data.topic_id}")
-                self.write(data, scope=Map(data=data))
+                event = self.queue.get(block=False)
+                self.log.info(f"Received event {event.topic_id}")
+                self.write(self.prepare_data(scope=Map(event=event)), scope=Map(event=event))
                 self.queue.task_done()
                 continue
             except queue.Empty:
                 pass
             exit_event.wait(1)
+
+    def test(self):
+        event = random.choice(self.source).test()
+        return self.prepare_data(scope=Map(event=event))
