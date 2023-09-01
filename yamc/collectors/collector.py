@@ -162,16 +162,23 @@ class EventCollector(BaseCollector):
         )
         for s in self.source:
             s.subscribe(self.queue)
-        while not exit_event.is_set():
+        events = []
+        while True:
             try:
-                event = self.queue.get(block=False)
-                self.log.info(f"Received event {event.topic_id}")
-                self.write(self.prepare_data(scope=Map(event=event)), scope=Map(event=event))
+                events.append(self.queue.get(block=False))
                 self.queue.task_done()
                 continue
             except queue.Empty:
                 pass
+
+            if len(events) > 0:
+                self.log.info(f"Received events: {[x.topic_id for x in events]}")
+                for event in events:
+                    self.write(self.prepare_data(scope=Map(event=event)), scope=Map(event=event))
+                events = []
             exit_event.wait(1)
+            if exit_event.is_set():
+                break
 
     def test(self):
         event = random.choice(self.source).test()
