@@ -48,6 +48,9 @@ class Topic:
     def subscribe(self, queue):
         self.subscribers.append(queue)
 
+    def test(self):
+        return Map(topic_id=self.topic_id, time=time.time(), data="test")
+
 
 class EventSource:
     """
