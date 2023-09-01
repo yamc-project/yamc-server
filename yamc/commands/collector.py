@@ -196,9 +196,9 @@ def collector_data(config, log, collector_id, show_writer, limit, count, delay, 
 
         print(f"-- retrieving data, iteration: {_iter + 1}/{count}")
         x = time.time()
-        data = collector.prepare_data()
+        data = collector.test()
         print(
-            f"-- retrieved {len(data) if data is not None else 0} records from the provider in {time.time()-x} seconds"
+            f"-- retrieved {len(data) if data is not None else 0} records from the provider in {time.time()-x:.4f} seconds"
         )
         if not show_writer:
             if isinstance(data, list):
