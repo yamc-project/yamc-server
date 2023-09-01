@@ -215,9 +215,9 @@ def perf_checker(id_arg=None):
     return decorator
 
 
-class PerformanceAnalyser:
+class PerformanceAnalyzer:
     """
-    Performance analysis class is used to analyze the performance of the providers using CSV files where
+    Performance analyzer class is used to analyze the performance of the providers using CSV files where
     performance of the providers is stored. Such files can be produced using the events from the performance
     provider.
     """

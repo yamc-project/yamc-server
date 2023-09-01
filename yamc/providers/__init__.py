@@ -19,5 +19,5 @@ from .event import (
 from .performance import (
     PerformanceProvider,
     perf_checker,
-    PerformanceAnalyser,
+    PerformanceAnalyzer,
 )

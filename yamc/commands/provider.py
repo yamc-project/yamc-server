@@ -11,7 +11,7 @@ import pandas as pd
 import yamc.config as yamc_config
 from yamc.config import Config
 from yamc.json2table import Table
-from yamc.providers import BaseProvider, EventProvider, PerformanceProvider, PerformanceAnalyser
+from yamc.providers import BaseProvider, EventProvider, PerformanceProvider, PerformanceAnalyzer
 from yamc.utils import Map
 from datetime import timedelta
 
@@ -199,7 +199,7 @@ def provider_perf(config, log, provider_ids, perf_dir, offset):
     provider_ids = [x.component_id for x in providers]
     log.info(f"Will use the following providers to analyze the performance: {provider_ids}")
 
-    analyzer = PerformanceAnalyser(perf_dir)
+    analyzer = PerformanceAnalyzer(perf_dir)
 
     def get_data():
         min_time, max_time, data = analyzer.get_perf_data(offset, None)
