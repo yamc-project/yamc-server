@@ -359,6 +359,12 @@ class Config:
             + list(self.scope.providers.values())
         )
 
+        # initialize modules
+        self.log.info("Initializing modules.")
+        for name in self.custom_functions.keys():
+            if hasattr(self.scope[name], "__init_module__"):
+                self.scope[name].__init_module__(self)
+
     def get_dir_path(self, path, base_dir=None, check=False):
         """
         Return the full directory of the path with `config_dir` as the base directory.
