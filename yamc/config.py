@@ -20,6 +20,7 @@ import imp
 
 from .utils import PythonExpression
 from .utils import deep_find, import_class, Map, deep_merge, str2bool
+from .component import ValidationError
 from functools import reduce
 
 import yamc.config as yamc_config
@@ -293,7 +294,7 @@ class Config:
         self.scope = Map(writers=None, collectors=None, providers=None, all_components=[], topics=None)
 
         if not (os.path.exists(file)):
-            raise Exception(f"The configuration file {file} does not exist!")
+            raise ValidationError(f"The configuration file {file} does not exist!")
 
         self.raw_config, self.config_file, self.config_dir = read_raw_config(file, env)
         self.log = logging.getLogger("config")
@@ -307,13 +308,13 @@ class Config:
         def __load_components(name):
             components = Map()
             if self.config.value(name) is None:
-                raise Exception("There are no components of type %s" % name)
+                raise ValidationError("There are no components of type %s" % name)
             for component_id, component_config in self.config.value(name).items():
                 try:
                     clazz = import_class(component_config["class"])
                     components[component_id] = clazz(self, component_id)
                 except Exception as e:
-                    raise Exception("Cannot load component '%s'. %s" % (component_id, str(e)))
+                    raise ValidationError("Cannot load component '%s'. %s" % (component_id, str(e)))
             return components
 
         def __select_topics(*topics):
@@ -447,26 +448,28 @@ class ConfigPart:
                         try:
                             val = self.eval(val)
                         except Exception as e:
-                            raise Exception(
+                            raise ValidationError(
                                 "Cannot evaluate Python expression for property '%s'. %s" % (self.path(path), str(e))
                             )
                 r = type(val) if type != None else val
         if not r and required:
-            raise Exception("The property '%s' does not exist!" % (self.path(path)))
+            raise ValidationError("The property '%s' does not exist!" % (self.path(path)))
         return r
 
     def value_str(self, path, default=None, regex=None, required=False):
         v = self.value(path, default=default, type=str, required=required)
         if regex is not None and not re.match(regex, v):
-            raise Exception("The property %s value %s does not match %s!" % (self.path(path), v, regex))
+            raise ValidationError("The property %s value %s does not match %s!" % (self.path(path), v, regex))
         return v
 
     def value_int(self, path, default=None, min=None, max=None, required=False):
         v = self.value(path, default=default, type=int, required=required)
         if min is not None and v < min:
-            raise Exception("The property %s value %s must be greater or equal to %d!" % (self.path(path), v, min))
+            raise ValidationError(
+                "The property %s value %s must be greater or equal to %d!" % (self.path(path), v, min)
+            )
         if max is not None and v > max:
-            raise Exception("The property %s value %s must be less or equal to %d!" % (self.path(path), v, max))
+            raise ValidationError("The property %s value %s must be less or equal to %d!" % (self.path(path), v, max))
         return v
 
     def value_bool(self, path, default=None, required=False):

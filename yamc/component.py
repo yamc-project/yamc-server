@@ -13,6 +13,10 @@ from .utils import merge_dicts, Map, deep_find
 from . import config as yamc_config
 
 
+class ValidationError(Exception):
+    pass
+
+
 class State:
     """
     The state object serves as a container for data state management across various providers in the configuration.
@@ -123,7 +127,7 @@ class WorkerComponent(BaseComponent):
         Start the worker thread.
         """
         if self.enabled:
-            self.log.info(f"Starting the worker thread '{self.component_id}'.")
+            self.log.debug(f"Starting the worker thread '{self.component_id}'.")
             self.start_time = time.time()
             self.thread = threading.Thread(target=self.worker, args=(exit_event,), daemon=True)
             self.thread.start()

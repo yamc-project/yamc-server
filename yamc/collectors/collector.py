@@ -10,7 +10,7 @@ import queue
 import random
 
 from datetime import datetime
-from yamc.component import WorkerComponent
+from yamc.component import WorkerComponent, ValidationError
 from yamc.providers import Topic
 from yamc.utils import Map, deep_eval, merge_dicts, PythonExpression
 
@@ -20,7 +20,7 @@ import yamc.config as yamc_config
 class BaseCollector(WorkerComponent):
     def __init__(self, config, component_id):
         if config.scope.writers is None:
-            raise Exception("CRITICAL: There are no writers! Have you loaded writers before collectors?")
+            raise ValidationError("There are no writers! Have you loaded writers before collectors?")
 
         super().__init__(config, component_id)
         self.config = config.collector(component_id)
@@ -48,8 +48,8 @@ class BaseCollector(WorkerComponent):
         self.data_def = self.config.value("data", required=False, no_eval=True)
         if self.data_def is None:
             self.data_def = Map(__nod=0)
-        if not isinstance(self.data_def, dict) and not callable(getattr(self.data_def, "eval", None)):
-            raise Exception("The value of data property must be dict or a Python expression!")
+        if not isinstance(self.data_def, dict) and not isinstance(self.data_def, PythonExpression):
+            raise ValidationError("The value of data property must be dict or a Python expression!")
         self.max_history = self.config.value_int("max_history", default=120)
         self.history = []
 
@@ -105,7 +105,7 @@ class CronCollector(BaseCollector):
         super().__init__(config, component_id)
         self.schedule = self.config.value_str("schedule", required=True)
         if not croniter.croniter.is_valid(self.schedule):
-            raise Exception("The value of schedule property '%s' is not valid!" % self.schedule)
+            raise ValidationError("The value of schedule property '%s' is not valid!" % self.schedule)
 
     def get_time_to_sleep(self, itr):
         while True:
@@ -121,7 +121,7 @@ class CronCollector(BaseCollector):
         return seconds
 
     def worker(self, exit_event):
-        self.log.info("Starting the cron collector thread. The cron schedule is %s" % (self.schedule))
+        self.log.debug("Running the cron collector thread with the schedule '%s'" % (self.schedule))
         itr = croniter.croniter(self.schedule, datetime.now())
         time2sleep = self.get_time_to_sleep(itr)
         while not exit_event.is_set():
@@ -141,15 +141,15 @@ class EventCollector(BaseCollector):
         self.queue = queue.Queue()
         self.source_def = self.config.value("source", required=True, no_eval=True)
         if not isinstance(self.source_def, PythonExpression):
-            raise Exception(f"The source must be of type {PythonExpression.__class__.__name__}")
+            raise ValidationError(f"The source must be of type {PythonExpression.__class__.__name__}")
 
         self.source = self.config.eval(self.source_def)
         if isinstance(self.source, list):
             for x in self.source:
                 if not isinstance(x, Topic):
-                    raise Exception(f"The source must be the list of types {Topic.__class__.__name__}")
+                    raise ValidationError(f"The source must be the list of types {Topic.__class__.__name__}")
         elif not isinstance(self.source, Topic):
-            raise Exception(f"The source must be of type {Topic.__class__.__name__}")
+            raise ValidationError(f"The source must be of type {Topic.__class__.__name__}")
 
         # set the default data definition if not set
         if not isinstance(self.data_def, PythonExpression) and self.data_def.get("__nod") is not None:
