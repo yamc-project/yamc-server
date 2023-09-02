@@ -115,7 +115,6 @@ class BaseCommand(click.core.Command):
         init_logging(
             logs_dir,
             filename_suffix,
-            log_level="DEBUG" if yamc_config.DEBUG and len(yamc_config.DEBUG_PARAMS) == 0 else "INFO",
             handlers=self.log_handlers,
         )
 

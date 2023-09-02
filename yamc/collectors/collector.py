@@ -156,7 +156,7 @@ class EventCollector(BaseCollector):
             self.data_def = PythonExpression("event")
 
     def worker(self, exit_event):
-        self.log.info("Starting the event collector thread.")
+        self.log.debug("Starting the event collector thread.")
         self.log.info(
             "Subscribing to events from the following topics: %s" % (", ".join([x.topic_id for x in self.source]))
         )

@@ -306,6 +306,7 @@ class Config:
         """
 
         def __load_components(name):
+            self.log.info("Loading %s." % name)
             components = Map()
             if self.config.value(name) is None:
                 raise ValidationError("There are no components of type %s" % name)
@@ -433,7 +434,7 @@ class ConfigPart:
         return "%s.%s" % (self.base_path, path) if self.base_path is not None else path
 
     def eval(self, val):
-        if callable(getattr(val, "eval", None)):
+        if isinstance(val, PythonExpression):
             return val.eval(self.parent.scope)
         return val
 
@@ -450,7 +451,7 @@ class ConfigPart:
                 r = default
             else:
                 if not no_eval:
-                    if callable(getattr(val, "eval", None)):
+                    if isinstance(val, PythonExpression):
                         try:
                             val = self.eval(val)
                         except Exception as e:
@@ -509,14 +510,12 @@ traceback_manager = logging.Manager(logging.RootLogger(logging.INFO))
 traceback_handler = None
 
 
-def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "console"]):
+def init_logging(logs_dir, command_name, handlers=["file", "console"]):
     """
     Initialize the logging, set the log level and logging directory.
     """
+    log_level = "DEBUG" if yamc_config.DEBUG and len(yamc_config.DEBUG_PARAMS) == 0 else "INFO"
     os.makedirs(logs_dir, exist_ok=True)
-
-    # log handlers
-    log_handlers = handlers
 
     # main logs configuration
     logging_dict = {
@@ -543,18 +542,20 @@ def init_logging(logs_dir, command_name, log_level="INFO", handlers=["file", "co
         },
         "loggers": {
             "": {  # all loggers
-                "handlers": log_handlers,
+                "handlers": handlers,
                 "level": f"{log_level}",
                 "propagate": False,
             }
         },
     }
 
+    # add debug loggers
     for p in DEBUG_PARAMS:
-        logging_dict["loggers"][p] = {"level": "DEBUG", "propagate": False, "handlers": log_handlers}
+        logging_dict["loggers"][p] = {"level": "DEBUG", "propagate": False, "handlers": handlers}
 
     logging.config.dictConfig(logging_dict)
 
+    # traceback logs configuration
     if yamc_config.TRACEBACK:
         global traceback_handler
         traceback_handler = logging.handlers.TimedRotatingFileHandler(
