@@ -34,8 +34,8 @@ ENVPARAM_PATTERN = "\$\{%s\}" % ENVNAME_PATTERN
 # consolidated variables supplied via env file and environment variables
 ENV = {}
 
-DEBUG = str2bool(os.getenv("YAMC_DEBUG", "False"))
-DEBUG_PARAMS = []
+YAMC_DEBUG = str2bool(os.getenv("YAMC_DEBUG", "False"))
+YAMC_DEBUG_PARAMS = [x.strip() for x in os.getenv("YAMC_DEBUG_PARAMS", "").split(",") if x != ""]
 ANSI_COLORS = not str2bool(os.getenv("YAMC_NO_ANSI", "False"))
 TRACEBACK = str2bool(os.getenv("YAMC_TRACEBACK", "False"))
 CONFIG_FILE = os.getenv("YAMC_CONFIG", None)
@@ -43,12 +43,14 @@ CONFIG_ENV = os.getenv("YAMC_ENV", None)
 YAMC_HOME = os.getenv("YAMC_HOME", "~/.yamc")
 YAMC_PERFDIR = os.getenv("YAMC_PERFDIR", f"{YAMC_HOME}/data/perf")
 
+
 env_variables = {
     "YAMC_HOME": YAMC_HOME,
     "YAMC_CONFIG": CONFIG_FILE,
     "YAMC_ENV": CONFIG_ENV,
     "YAMC_PERFDIR": YAMC_PERFDIR,
-    "YAMC_DEBUG": DEBUG,
+    "YAMC_DEBUG": YAMC_DEBUG,
+    "YAMC_DEBUG_PARAMS": ",".join(YAMC_DEBUG_PARAMS) if len(YAMC_DEBUG_PARAMS) > 0 else "",
     "YAMC_TRACEBACK": TRACEBACK,
     "YAMC_NO_ANSI": not ANSI_COLORS,
 }
@@ -514,7 +516,7 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
     """
     Initialize the logging, set the log level and logging directory.
     """
-    log_level = "DEBUG" if yamc_config.DEBUG and len(yamc_config.DEBUG_PARAMS) == 0 else "INFO"
+    log_level = "DEBUG" if yamc_config.YAMC_DEBUG and len(yamc_config.YAMC_DEBUG_PARAMS) == 0 else "INFO"
     os.makedirs(logs_dir, exist_ok=True)
 
     # main logs configuration
@@ -550,7 +552,7 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
     }
 
     # add debug loggers
-    for p in DEBUG_PARAMS:
+    for p in YAMC_DEBUG_PARAMS:
         logging_dict["loggers"][p] = {"level": "DEBUG", "propagate": False, "handlers": handlers}
 
     logging.config.dictConfig(logging_dict)

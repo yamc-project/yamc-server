@@ -48,7 +48,7 @@ class FlagOptions(click.ParamType):
                         parts = match.group(1).split(",")
                         return (True, parts)
                     self.fail(f"Invalid flag option {v}")
-        return (False, [])
+        return (yamc_config.YAMC_DEBUG, yamc_config.YAMC_DEBUG_PARAMS)
 
 
 class CoreCommandGroup(click.core.Group):
@@ -62,9 +62,9 @@ class CoreCommandGroup(click.core.Group):
         The main method to run the command.
         """
         # retrieve the global options
-        yamc_config.ANSI_COLORS = not ctx.params.pop("no_ansi", False)
-        yamc_config.DEBUG, yamc_config.DEBUG_PARAMS = ctx.params.pop("debug", (False, []))
-        yamc_config.TRACEBACK = ctx.params.pop("traceback", False)
+        yamc_config.ANSI_COLORS = not ctx.params.pop("no_ansi", yamc_config.ANSI_COLORS)
+        yamc_config.YAMC_DEBUG, yamc_config.YAMC_DEBUG_PARAMS = ctx.params.pop("debug")
+        yamc_config.TRACEBACK = ctx.params.pop("traceback", yamc_config.TRACEBACK)
 
         # pylint: disable=broad-except
         try:
