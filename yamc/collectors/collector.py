@@ -33,7 +33,8 @@ class BaseCollector(WorkerComponent):
         for w in self.config.value("writers", default=[]):
             if w["writer_id"] not in config.writers.keys():
                 self.log.warn(
-                    f"The writer with id {w['writer_id']} does not exist. The collector will not write data using this writer definition!"
+                    f"The writer with id {w['writer_id']} does not exist. The collector will not write data using "
+                    + "this writer definition!"
                 )
             self.writers[w["writer_id"]] = {k: v for k, v in w.items() if k != "writer_id"}
             self.writers[w["writer_id"]]["__writer"] = None
@@ -115,7 +116,8 @@ class CronCollector(BaseCollector):
                 break
             else:
                 self.log.warning(
-                    f"The next run of the job {self.component_id} already passed by {seconds} seconds. Trying the next iteration."
+                    f"The next run of the job {self.component_id} already passed by {seconds} seconds. Trying "
+                    + "the next iteration."
                 )
         self.log.info(f"The next job of '{self.component_id}' will run in {seconds} seconds (@{next_run}).")
         return seconds
