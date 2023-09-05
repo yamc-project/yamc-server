@@ -143,15 +143,15 @@ class EventCollector(BaseCollector):
         self.queue = queue.Queue()
         self.source_def = self.config.value("source", required=True, no_eval=True)
         if not isinstance(self.source_def, PythonExpression):
-            raise ValidationError(f"The source must be of type {PythonExpression.__class__.__name__}")
+            raise ValidationError(f"The source must be of type {PythonExpression.__name__}")
 
         self.source = self.config.eval(self.source_def)
         if isinstance(self.source, list):
             for x in self.source:
                 if not isinstance(x, Topic):
-                    raise ValidationError(f"The source must be the list of types {Topic.__class__.__name__}")
+                    raise ValidationError(f"The source must be the list of types '{Topic.__name__}'")
         elif not isinstance(self.source, Topic):
-            raise ValidationError(f"The source must be of type {Topic.__class__.__name__}")
+            raise ValidationError(f"The source must be of type {Topic.__name__}")
 
         # set the default data definition if not set
         if not isinstance(self.data_def, PythonExpression) and self.data_def.get("__nod") is not None:
