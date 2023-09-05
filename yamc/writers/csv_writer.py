@@ -4,6 +4,7 @@
 import time
 import logging
 import os
+import threading
 
 from .writer import Writer, HealthCheckException
 from yamc.utils import import_class, randomString
@@ -65,6 +66,7 @@ class CsvWriter(Writer):
             os.makedirs(os.path.dirname(self.handler_def["filename"]), exist_ok=True)
         self.initialized = False
         self.disabled = False
+        self.lock = threading.Lock()
 
     def healthcheck(self):
         super().healthcheck()
@@ -82,17 +84,18 @@ class CsvWriter(Writer):
             else:
                 return str(v)
 
-        if not self.initialized and not self.disabled:
-            try:
-                handler = self.handler_class(**{k: v for k, v in self.handler_def.items() if k != "class"})
-                self.csv_writer.addHandler(handler)
-                self.initialized = True
-            except Exception as e:
-                self.log.error(f"Error initializing the CSV writer: {e}. The writer will be disabled.")
-                self.disabled = True
+        with self.lock:
+            if not self.initialized and not self.disabled:
+                try:
+                    handler = self.handler_class(**{k: v for k, v in self.handler_def.items() if k != "class"})
+                    self.csv_writer.addHandler(handler)
+                    self.initialized = True
+                except Exception as e:
+                    self.log.error(f"Error initializing the CSV writer: {e}. The writer will be disabled.")
+                    self.disabled = True
 
-        if self.initialized:
-            self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
-            for data in items:
-                line = [_format_value(v) for k, v in data.data.items()]
-                self.csv_writer.info(",".join(line))
+            if self.initialized:
+                self.log.debug(f"Writing {len(items)} rows to {self.handler_def['filename']}")
+                for data in items:
+                    line = [_format_value(v) for k, v in data.data.items()]
+                    self.csv_writer.info(",".join(line))
