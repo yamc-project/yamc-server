@@ -25,7 +25,7 @@ from functools import reduce
 
 import yamc.config as yamc_config
 
-from yamc.providers import EventSource
+from yamc.providers import EventSource, global_event_source
 
 # they must be in a form ${VARIABLE_NAME}
 ENVNAME_PATTERN = "[A-Z0-9_]+"
@@ -314,6 +314,9 @@ class Config:
                 raise ValidationError("There are no components of type %s" % name)
             for component_id, component_config in self.config.value(name).items():
                 try:
+                    self.log.debug(
+                        "Loading component '%s' using class '%s'." % (component_id, component_config["class"])
+                    )
                     clazz = import_class(component_config["class"])
                     components[component_id] = clazz(self, component_id)
                 except Exception as e:
@@ -321,7 +324,7 @@ class Config:
             return components
 
         def __select_topics(*topics):
-            sources = []
+            sources = global_event_source.select(*topics, silent=True)
             for name, provider in self.scope.providers.items():
                 if isinstance(provider, EventSource):
                     sources.extend(provider.select(*topics, silent=True))
