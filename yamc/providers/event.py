@@ -54,10 +54,10 @@ class Topic:
 
 class EventSource:
     """
-    Event source object provides a link between a specific pub/sub mechanism
-    (such as MQTT) and yamc providers. When a provider implements this interface,
-    than it can be used as a source of events to which event-based collector `EventCollector`
-    can subscribe.
+    Event source object is a container for topics that can be published by a component.
+    It also provides a link between a specific pub/sub mechanism (such as MQTT) and yamc providers.
+    When a provider implements this interface, than it can be used as a source of events to which
+    event-based collector `EventCollector` can subscribe.
     """
 
     def __init__(self):
@@ -167,3 +167,8 @@ class StateProvider(EventProvider):
                     topic.update(data)
 
         _walk(data, _update_topic)
+
+
+# global event source not associated with any provider
+# this can be used to publish events from anywhere
+global_event_source = EventSource()

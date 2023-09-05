@@ -13,7 +13,7 @@ from yamc.utils import Map
 from datetime import datetime, timedelta
 
 from .provider import BaseProvider, OperationalError
-from .event import EventSource
+from .event import EventSource, global_event_source
 
 import yamc.config as yamc_config
 
@@ -27,9 +27,7 @@ class PerformanceProvider(BaseProvider, EventSource):
     """
 
     def __init__(self, config, component_id):
-        BaseProvider.__init__(self, config, component_id)
-        EventSource.__init__(self)
-        self.perf_topic = self.add_topic(f"yamc/performance/providers/{component_id}")
+        self.perf_topic = global_event_source.add_topic(f"yamc/performance/providers/{component_id}")
 
         # performance pause configuration
         self.performance_pause = Map(

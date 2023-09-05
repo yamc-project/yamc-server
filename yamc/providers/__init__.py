@@ -14,6 +14,7 @@ from .event import (
     EventSource,
     EventProvider,
     StateProvider,
+    global_event_source,
 )
 
 from .performance import (
