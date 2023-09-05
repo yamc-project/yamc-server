@@ -20,13 +20,14 @@ import yamc.config as yamc_config
 import pandas as pd
 
 
-class PerformanceProvider(BaseProvider, EventSource):
+class PerformanceProvider(BaseProvider):
     """
     Performance provider is a base class for all providers that need to
     implement performance pause functionality.
     """
 
     def __init__(self, config, component_id):
+        super().__init__(config, component_id)
         self.perf_topic = global_event_source.add_topic(f"yamc/performance/providers/{component_id}")
 
         # performance pause configuration

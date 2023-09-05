@@ -108,7 +108,7 @@ class EventProvider(BaseProvider, EventSource):
     """
 
     def __init__(self, config, component_id):
-        BaseProvider.__init__(self, config, component_id)
+        super().__init__(config, component_id)
         EventSource.__init__(self)
         for topic_id in self.config.value("topics"):
             self.add_topic(topic_id)
