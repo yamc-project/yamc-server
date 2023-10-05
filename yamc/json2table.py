@@ -176,7 +176,7 @@ class Table:
                     line.append(_wrap_str(self.eval_value(cdef.get("value"), e)))
             lines.append(delim.join(line))
 
-        if not (noterm) and format is None:
+        if not (noterm) and format is None and sys.stdout.isatty():
             cols = self.getTerminalCols()
         else:
             cols = 100000
