@@ -496,8 +496,8 @@ class MsgLengthFilter(logging.Filter):
     def filter(self, record):
         _msg = str(record.msg)
         if len(_msg) > self.max_length:
-            _len = int(self.max_length / 2)
-            _msg = _msg[:_len] + " ... " + _msg[-_len:]
+            _len = int(self.max_length / 3)
+            _msg = _msg[: 2 * _len] + " ... " + _msg[-1 * _len :]
             record.msg = _msg
         return True
 
@@ -569,7 +569,7 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
             }
         },
         "filters": {
-            "msglen_filter": {"()": MsgLengthFilter, "max_length": 300},
+            "msglen_filter": {"()": MsgLengthFilter, "max_length": 500},
         },
     }
 
