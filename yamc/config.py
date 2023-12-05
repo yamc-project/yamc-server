@@ -488,6 +488,20 @@ class ConfigPart:
         return self.value(path, default=default, type=bool, required=required)
 
 
+class MsgLengthFilter(logging.Filter):
+    def __init__(self, max_length):
+        super().__init__()
+        self.max_length = max_length
+
+    def filter(self, record):
+        _msg = str(record.msg)
+        if len(_msg) > self.max_length:
+            _len = int(self.max_length / 2)
+            _msg = _msg[:_len] + " ... " + _msg[-_len:]
+            record.msg = _msg
+        return True
+
+
 class CustomFormatter(logging.Formatter):
     grey = "\x1b[38;20m"
     yellow = "\x1b[33;20m"
@@ -535,6 +549,7 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
                 "formatter": "colored" if ANSI_COLORS else "standard",
                 "class": "logging.StreamHandler",
                 "stream": "ext://sys.stdout",  # Default is stderr
+                "filters": ["msglen_filter"],
             },
             "file": {
                 "formatter": "standard",
@@ -543,6 +558,7 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
                 "when": "midnight",
                 "interval": 1,
                 "backupCount": 30,
+                "filters": ["msglen_filter"],
             },
         },
         "loggers": {
@@ -551,6 +567,9 @@ def init_logging(logs_dir, command_name, handlers=["file", "console"]):
                 "level": f"{log_level}",
                 "propagate": False,
             }
+        },
+        "filters": {
+            "msglen_filter": {"()": MsgLengthFilter, "max_length": 300},
         },
     }
 
